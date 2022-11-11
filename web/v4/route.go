@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -76,7 +77,6 @@ func (r *router) findRoute(method string, path string) (*matchInfo, bool) {
 	if path == "/" {
 		return &matchInfo{n: root}, true
 	}
-
 	segs := strings.Split(strings.Trim(path, "/"), "/")
 	mi := &matchInfo{}
 	for _, s := range segs {
@@ -86,7 +86,12 @@ func (r *router) findRoute(method string, path string) (*matchInfo, bool) {
 			return nil, false
 		}
 		if matchParam {
-			mi.addValue(root.path[1:], s)
+			// 正则匹配
+			if strings.Contains(root.path, "(") {
+				mi.addValue(root.path[1:strings.Index(root.path, "(")], s)
+			} else {
+				mi.addValue(root.path[1:], s)
+			}
 		}
 	}
 	mi.n = root
@@ -111,6 +116,12 @@ type node struct {
 	starChild *node
 
 	paramChild *node
+	// 正则路由和参数路由都会使用这个字段
+	paramName string
+
+	// 正则匹配
+	regChild *node
+	regExpr  *regexp.Regexp
 }
 
 // child 返回子节点
@@ -122,12 +133,27 @@ func (n *node) childOf(path string) (*node, bool, bool) {
 		if n.paramChild != nil {
 			return n.paramChild, true, true
 		}
+		if n.path == "*" {
+			return n, false, true
+		}
+		// 查看是否符合正则匹配
+		if n.regChild != nil {
+			if n.regChild.regExpr.Match([]byte(path)) {
+				return n.regChild, true, true
+			}
+		}
 		return n.starChild, false, n.starChild != nil
 	}
 	res, ok := n.children[path]
 	if !ok {
 		if n.paramChild != nil {
 			return n.paramChild, true, true
+		}
+		// 查看是否符合正则匹配
+		if n.regChild != nil {
+			if n.regChild.regExpr.Match([]byte(path)) {
+				return n.regChild, true, true
+			}
 		}
 		return n.starChild, false, n.starChild != nil
 	}
@@ -160,7 +186,19 @@ func (n *node) childOrCreate(path string) *node {
 				panic(fmt.Sprintf("web: 路由冲突，参数路由冲突，已有 %s，新注册 %s", n.paramChild.path, path))
 			}
 		} else {
-			n.paramChild = &node{path: path}
+			// 正则匹配
+			if strings.Contains(path, "(") {
+				regVal := path[strings.Index(path, "(")+1 : strings.Index(path, ")")]
+				reg, err := regexp.Compile(regVal)
+				if err != nil {
+					panic("regexp err")
+				}
+				param := strings.Split(path[1:], "(")[0]
+				n.regChild = &node{path: path, regExpr: reg, paramName: param}
+				return n.regChild
+			} else {
+				n.paramChild = &node{path: path, paramName: path}
+			}
 		}
 		return n.paramChild
 	}

@@ -2,10 +2,11 @@ package web
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_router_AddRoute(t *testing.T) {
@@ -71,6 +72,15 @@ func Test_router_AddRoute(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/param/:id/*",
 		},
+		// 正则路由
+		{
+			method: http.MethodDelete,
+			path:   "/reg/:id(.*)",
+		},
+		{
+			method: http.MethodDelete,
+			path:   "/:name(^.+$)/abc",
+		},
 	}
 
 	mockHandler := func(ctx *Context) {}
@@ -93,7 +103,8 @@ func Test_router_AddRoute(t *testing.T) {
 					"param": {
 						path: "param",
 						paramChild: &node{
-							path: ":id",
+							path:      ":id",
+							paramName: "id",
 							starChild: &node{
 								path:    "*",
 								handler: mockHandler,
@@ -120,6 +131,29 @@ func Test_router_AddRoute(t *testing.T) {
 				}},
 				"login": {path: "login", handler: mockHandler},
 			}},
+			http.MethodDelete: {
+				path: "/",
+				children: map[string]*node{
+					"reg": {
+						path: "reg",
+						regChild: &node{
+							path:      ":id(.*)",
+							paramName: "id",
+							handler:   mockHandler,
+						},
+					},
+				},
+				regChild: &node{
+					path:      ":name(^.+$)",
+					paramName: "name",
+					children: map[string]*node{
+						"abc": {
+							path:    "abc",
+							handler: mockHandler,
+						},
+					},
+				},
+			},
 		},
 	}
 	msg, ok := wantRouter.equal(r)
@@ -217,6 +251,10 @@ func (n *node) equal(y *node) (string, bool) {
 		return fmt.Sprintf("%s 节点 handler 不相等 x %s, y %s", n.path, nhv.Type().String(), yhv.Type().String()), false
 	}
 
+	if n.paramName != y.paramName {
+		return fmt.Sprintf("%s 节点参数名字不相等 x %s, y %s", n.path, n.paramName, y.paramName), false
+	}
+
 	if len(n.children) != len(y.children) {
 		return fmt.Sprintf("%s 子节点长度不等", n.path), false
 	}
@@ -228,6 +266,20 @@ func (n *node) equal(y *node) (string, bool) {
 		str, ok := n.starChild.equal(y.starChild)
 		if !ok {
 			return fmt.Sprintf("%s 通配符节点不匹配 %s", n.path, str), false
+		}
+	}
+
+	if n.paramChild != nil {
+		str, ok := n.paramChild.equal(y.paramChild)
+		if !ok {
+			return fmt.Sprintf("%s 路径参数节点不匹配 %s", n.path, str), false
+		}
+	}
+
+	if n.regChild != nil {
+		str, ok := n.regChild.equal(y.regChild)
+		if !ok {
+			return fmt.Sprintf("%s 路径参数节点不匹配 %s", n.path, str), false
 		}
 	}
 
@@ -281,6 +333,15 @@ func Test_router_findRoute(t *testing.T) {
 		{
 			method: http.MethodGet,
 			path:   "/param/:id/*",
+		},
+		// 正则
+		{
+			method: http.MethodDelete,
+			path:   "/reg/:id(.*)",
+		},
+		{
+			method: http.MethodDelete,
+			path:   "/:id([0-9]+)/home",
 		},
 	}
 
@@ -381,7 +442,14 @@ func Test_router_findRoute(t *testing.T) {
 			// 比 /order/* 多了一段
 			name:   "overflow",
 			method: http.MethodPost,
-			path:   "/order/delete/123",
+			path:   "/order/delete/123/",
+			found:  true,
+			mi: &matchInfo{
+				n: &node{
+					path:    "*",
+					handler: mockHandler,
+				},
+			},
 		},
 		// 参数匹配
 		{
@@ -426,6 +494,40 @@ func Test_router_findRoute(t *testing.T) {
 				},
 				pathParams: map[string]string{"id": "123"},
 			},
+		},
+		{
+			// 命中 /reg/:id(.*)
+			name:   ":id(.*)",
+			method: http.MethodDelete,
+			path:   "/reg/123",
+			found:  true,
+			mi: &matchInfo{
+				n: &node{
+					path:    ":id(.*)",
+					handler: mockHandler,
+				},
+				pathParams: map[string]string{"id": "123"},
+			},
+		},
+		{
+			// 命中 /:id([0-9]+)/home
+			name:   ":id([0-9]+)",
+			method: http.MethodDelete,
+			path:   "/123/home",
+			found:  true,
+			mi: &matchInfo{
+				n: &node{
+					path:    ":id(.*)",
+					handler: mockHandler,
+				},
+				pathParams: map[string]string{"id": "123"},
+			},
+		},
+		{
+			// 未命中 /:id([0-9]+)/home
+			name:   "not :id([0-9]+)",
+			method: http.MethodDelete,
+			path:   "/abc/home",
 		},
 	}
 
