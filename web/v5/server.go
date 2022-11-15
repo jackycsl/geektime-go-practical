@@ -1,6 +1,9 @@
 package web
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+)
 
 type HandleFunc func(ctx *Context)
 
@@ -21,13 +24,30 @@ type Server interface {
 // 确保 HTTPServer 肯定实现了 Server 接口
 var _ Server = &HTTPServer{}
 
+type HTTPServerOption func(server *HTTPServer)
+
 type HTTPServer struct {
 	router
+	mdls []Middleware
+	log  func(msg string, args ...any)
 }
 
-func NewHTTPServer() *HTTPServer {
-	return &HTTPServer{
+func NewHTTPServer(opts ...HTTPServerOption) *HTTPServer {
+	res := &HTTPServer{
 		router: newRouter(),
+		log: func(msg string, args ...any) {
+			fmt.Printf(msg, args...)
+		},
+	}
+	for _, opt := range opts {
+		opt(res)
+	}
+	return res
+}
+
+func ServerWithMiddleware(mdls ...Middleware) HTTPServerOption {
+	return func(server *HTTPServer) {
+		server.mdls = mdls
 	}
 }
 
@@ -37,7 +57,32 @@ func (s *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Request
 		Req:  request,
 		Resp: writer,
 	}
-	s.serve(ctx)
+	// 最后一个应该是 HTTPServer 执行路由匹配，执行用户代码
+	root := s.serve
+	// 从后往前组装
+	for i := len(s.mdls) - 1; i >= 0; i-- {
+		root = s.mdls[i](root)
+	}
+
+	// 这里，最后一步，把RespData 和 RespStatusCode 刷新到响应里面
+	var m Middleware = func(next HandleFunc) HandleFunc {
+		return func(ctx *Context) {
+			next(ctx)
+			s.flashResp(ctx)
+		}
+	}
+	root = m(root)
+	root(ctx)
+}
+
+func (s *HTTPServer) flashResp(ctx *Context) {
+	if ctx.RespStatusCode != 0 {
+		ctx.Resp.WriteHeader(ctx.RespStatusCode)
+	}
+	n, err := ctx.Resp.Write(ctx.RespData)
+	if err != nil || n != len(ctx.RespData) {
+		s.log("写入响应失败 %v", err)
+	}
 }
 
 // Start 启动服务器
@@ -56,10 +101,11 @@ func (s *HTTPServer) Get(path string, handler HandleFunc) {
 func (s *HTTPServer) serve(ctx *Context) {
 	mi, ok := s.findRoute(ctx.Req.Method, ctx.Req.URL.Path)
 	if !ok || mi.n == nil || mi.n.handler == nil {
-		ctx.Resp.WriteHeader(404)
-		ctx.Resp.Write([]byte("Not Found"))
+		ctx.RespStatusCode = 404
+		ctx.RespData = []byte("NOT FOUND")
 		return
 	}
 	ctx.PathParams = mi.pathParams
+	ctx.MatchedRoute = mi.n.route
 	mi.n.handler(ctx)
 }

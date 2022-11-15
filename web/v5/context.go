@@ -9,11 +9,19 @@ import (
 )
 
 type Context struct {
-	Req        *http.Request
-	Resp       http.ResponseWriter
+	Req *http.Request
+
+	Resp http.ResponseWriter
+
+	// 这个主要是为了middleware读写用的
+	RespData       []byte
+	RespStatusCode int
+
 	PathParams map[string]string
 
 	cacheQueryValues url.Values
+
+	MatchedRoute string
 }
 
 func (c *Context) SetCookie(cookie *http.Cookie) {
@@ -29,8 +37,8 @@ func (c *Context) RespJSON(code int, val any) error {
 	if err != nil {
 		return err
 	}
-	c.Resp.WriteHeader(code)
-	_, err = c.Resp.Write(bs)
+	c.RespStatusCode = code
+	c.RespData = bs
 	return err
 }
 
