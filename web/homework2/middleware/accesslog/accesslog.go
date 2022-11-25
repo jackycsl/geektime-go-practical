@@ -2,8 +2,9 @@ package accesslog
 
 import (
 	"encoding/json"
-	web "gitee.com/geektime-geekbang/geektime-go/web/homework2"
 	"log"
+
+	web "github.com/jackycsl/geektime-go-practical/web/homework2"
 )
 
 type MiddlewareBuilder struct {

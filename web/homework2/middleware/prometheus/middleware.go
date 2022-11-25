@@ -1,10 +1,11 @@
 package prometheus
 
 import (
-	"gitee.com/geektime-geekbang/geektime-go/web/homework2"
-	"github.com/prometheus/client_golang/prometheus"
 	"strconv"
 	"time"
+
+	web "github.com/jackycsl/geektime-go-practical/web/homework2"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type MiddlewareBuilder struct {
