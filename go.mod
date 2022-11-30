@@ -6,6 +6,7 @@ require (
 	github.com/go-redis/redis/v9 v9.0.0-rc.1
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/golang-lru v0.5.1
+	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prometheus/client_golang v1.14.0
 	github.com/stretchr/testify v1.8.1
