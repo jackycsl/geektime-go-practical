@@ -3,6 +3,7 @@ module github.com/jackycsl/geektime-go-practical
 go 1.19
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/go-redis/redis/v9 v9.0.0-rc.1
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/golang-lru v0.5.1
@@ -15,6 +16,7 @@ require (
 	go.opentelemetry.io/otel/exporters/zipkin v1.11.1
 	go.opentelemetry.io/otel/sdk v1.11.1
 	go.opentelemetry.io/otel/trace v1.11.1
+	golang.org/x/net v0.0.0-20221004154528-8021a29435af
 )
 
 require (

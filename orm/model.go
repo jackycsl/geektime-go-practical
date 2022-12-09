@@ -20,14 +20,21 @@ type Registry interface {
 
 type Model struct {
 	tableName string
-	fields    map[string]*Field
+	// fields    map[string]*Field
+	// 上面是字段名到字段定义的映射
+	FieldMap map[string]*Field
+	// 列名到字段定义的映射
+	ColumnMap map[string]*Field
 }
 
 type ModelOpt func(*Model) error
 
 type Field struct {
+	goName string
 	// 列名
 	colName string
+	// 代表的是字段的类型
+	typ reflect.Type
 }
 
 // var Models = map[reflect.Type]*Model{}
@@ -100,6 +107,7 @@ func (r *registry) Register(entity any, opts ...ModelOpt) (*Model, error) {
 	// }
 	numField := elemTyp.NumField()
 	fieldMap := make(map[string]*Field, numField)
+	columnMap := make(map[string]*Field, numField)
 	for i := 0; i < numField; i++ {
 		fd := elemTyp.Field(i)
 		pair, err := r.parseTag(fd.Tag)
@@ -110,9 +118,13 @@ func (r *registry) Register(entity any, opts ...ModelOpt) (*Model, error) {
 		if colName == "" {
 			colName = underscoreName(fd.Name)
 		}
-		fieldMap[fd.Name] = &Field{
+		fdMeta := &Field{
+			goName:  fd.Name,
 			colName: colName,
+			typ:     fd.Type,
 		}
+		fieldMap[fd.Name] = fdMeta
+		columnMap[colName] = fdMeta
 	}
 
 	var tableName string
@@ -125,7 +137,8 @@ func (r *registry) Register(entity any, opts ...ModelOpt) (*Model, error) {
 
 	res := &Model{
 		tableName: tableName,
-		fields:    fieldMap,
+		FieldMap:  fieldMap,
+		ColumnMap: columnMap,
 	}
 
 	for _, opt := range opts {
@@ -148,7 +161,7 @@ func ModelWithTableName(tableName string) ModelOpt {
 
 func ModelWithColumneName(field string, colName string) ModelOpt {
 	return func(m *Model) error {
-		fd, ok := m.fields[field]
+		fd, ok := m.FieldMap[field]
 		if !ok {
 			return errs.NewErrUnknownField(field)
 		}
