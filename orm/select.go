@@ -2,15 +2,15 @@ package orm
 
 import (
 	"context"
-	"reflect"
 	"strings"
 
 	"github.com/jackycsl/geektime-go-practical/orm/internal/errs"
+	"github.com/jackycsl/geektime-go-practical/orm/model"
 )
 
 type Selector[T any] struct {
 	table string
-	model *Model
+	model *model.Model
 	where []Predicate
 	sb    *strings.Builder
 	args  []any
@@ -37,7 +37,7 @@ func (s *Selector[T]) Build() (*Query, error) {
 	// 我怎么把表名拿到
 	if s.table == "" {
 		sb.WriteByte('`')
-		sb.WriteString(s.model.tableName)
+		sb.WriteString(s.model.TableName)
 		sb.WriteByte('`')
 	} else {
 		// segs := strings.Split(s.table, ".")
@@ -109,7 +109,7 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 			return errs.NewErrUnknownField(exp.name)
 		}
 		s.sb.WriteByte('`')
-		s.sb.WriteString(fd.colName)
+		s.sb.WriteString(fd.ColName)
 		s.sb.WriteByte('`')
 	case value:
 		s.sb.WriteByte('?')
@@ -144,6 +144,55 @@ func (s *Selector[T]) Where(ps ...Predicate) *Selector[T] {
 	return s
 }
 
+// func (s *Selector[T]) GetV1(ctx context.Context) (*T, error) {
+// 	q, err := s.Build()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	db := s.db.db
+// 	// 在这里，就是要发起查询，并且处理结果集
+// 	rows, err := db.QueryContext(ctx, q.SQL, q.Args...)
+// 	// 这个是查询错误
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	// 你要确认有没有数据
+// 	if !rows.Next() {
+// 		// 要不要返回 error？
+// 		// 返回 error，和 sql 包语义保持一致
+// 		return nil, ErrNoRows
+// 	}
+
+// 	cs, err := rows.Columns()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	var vals []any
+// 	tp := new(T)
+// 	// 起始地址
+// 	address := reflect.ValueOf(tp).UnsafePointer()
+// 	for _, c := range cs {
+// 		fd, ok := s.model.ColumnMap[c]
+// 		if !ok {
+// 			return nil, errs.NewErrUnknownColumn(c)
+// 		}
+// 		// 是不是要计算字段的地址？
+// 		// 起始地址 + 偏移量
+// 		fdAddress := unsafe.Pointer(uintptr(address) + fd.Offset)
+// 		// 反射在特定的地址上，创建一个特定类型的实例
+// 		// 这里创建的实例是原本类型的指针类型
+// 		// 例如 fd.Type = int，那么val 是 *int
+// 		val := reflect.NewAt(fd.Typ, fdAddress)
+// 		vals = append(vals, val.Interface())
+// 	}
+
+// 	err = rows.Scan(vals...)
+// 	return tp, err
+// }
+
 func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	q, err := s.Build()
 	if err != nil {
@@ -165,45 +214,11 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 		return nil, ErrNoRows
 	}
 
-	cs, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
 	tp := new(T)
+	val := s.db.creator(s.model, tp)
+	err = val.SetColumns(rows)
 
-	vals := make([]any, 0, len(cs))
-	valElem := make([]reflect.Value, 0, len(cs))
-	for _, c := range cs {
-		fd, ok := s.model.ColumnMap[c]
-		if !ok {
-			return nil, errs.NewErrUnknownColumn(c)
-		}
-		// fd.Type = int, val 是 *int
-		val := reflect.New(fd.typ)
-		vals = append(vals, val.Interface())
-		valElem = append(valElem, val.Elem())
-	}
-
-	err = rows.Scan(vals...)
-	if err != nil {
-		return nil, err
-	}
-
-	tpValueElem := reflect.ValueOf(tp).Elem()
-	for i, c := range cs {
-		fd, ok := s.model.ColumnMap[c]
-		if !ok {
-			return nil, errs.NewErrUnknownColumn(c)
-		}
-		if fd.colName == c {
-			tpValueElem.FieldByName(fd.goName).Set(valElem[i])
-		}
-	}
-
-	// 接口定义好之后，就两件事，一个是用新接口的方法改造上层，
-	// 一个就是提供不同的实现
-	return tp, nil
+	return tp, err
 }
 
 func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {

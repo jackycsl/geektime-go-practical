@@ -1,4 +1,4 @@
-package orm
+package model
 
 import (
 	"reflect"
@@ -19,7 +19,7 @@ type Registry interface {
 }
 
 type Model struct {
-	tableName string
+	TableName string
 	// fields    map[string]*Field
 	// 上面是字段名到字段定义的映射
 	FieldMap map[string]*Field
@@ -30,35 +30,38 @@ type Model struct {
 type ModelOpt func(*Model) error
 
 type Field struct {
-	goName string
+	GoName string
 	// 列名
-	colName string
+	ColName string
 	// 代表的是字段的类型
-	typ reflect.Type
+	Typ reflect.Type
+
+	// 字段相对于结构体本身的偏移量
+	Offset uintptr
 }
 
-// var Models = map[reflect.Type]*Model{}
+// var models = map[reflect.Type]*Model{}
 
 // 全局默认的
 // var defaultRegistry = &registry{
-// 	Models: map[reflect.Type]*Model{},
+// 	models: map[reflect.Type]*Model{},
 // }
 
 // registry 代表的是元数据的注册中心
 type registry struct {
 	// 读写锁
 	// lock   sync.RWMutex
-	// Models map[reflect.Type]*Model
-	Models sync.Map
+	// models map[reflect.Type]*Model
+	models sync.Map
 }
 
-func NewRegistry() *registry {
+func NewRegistry() Registry {
 	return &registry{}
 }
 
 func (r *registry) Get(val any) (*Model, error) {
 	typ := reflect.TypeOf((val))
-	m, ok := r.Models.Load(typ)
+	m, ok := r.models.Load(typ)
 	if ok {
 		return m.(*Model), nil
 	}
@@ -119,9 +122,10 @@ func (r *registry) Register(entity any, opts ...ModelOpt) (*Model, error) {
 			colName = underscoreName(fd.Name)
 		}
 		fdMeta := &Field{
-			goName:  fd.Name,
-			colName: colName,
-			typ:     fd.Type,
+			GoName:  fd.Name,
+			ColName: colName,
+			Typ:     fd.Type,
+			Offset:  fd.Offset,
 		}
 		fieldMap[fd.Name] = fdMeta
 		columnMap[colName] = fdMeta
@@ -136,7 +140,7 @@ func (r *registry) Register(entity any, opts ...ModelOpt) (*Model, error) {
 	}
 
 	res := &Model{
-		tableName: tableName,
+		TableName: tableName,
 		FieldMap:  fieldMap,
 		ColumnMap: columnMap,
 	}
@@ -148,13 +152,13 @@ func (r *registry) Register(entity any, opts ...ModelOpt) (*Model, error) {
 		}
 	}
 
-	r.Models.Store(typ, res)
+	r.models.Store(typ, res)
 	return res, nil
 }
 
 func ModelWithTableName(tableName string) ModelOpt {
 	return func(m *Model) error {
-		m.tableName = tableName
+		m.TableName = tableName
 		return nil
 	}
 }
@@ -165,7 +169,7 @@ func ModelWithColumneName(field string, colName string) ModelOpt {
 		if !ok {
 			return errs.NewErrUnknownField(field)
 		}
-		fd.colName = colName
+		fd.ColName = colName
 		return nil
 	}
 }
@@ -208,4 +212,8 @@ func underscoreName(tableName string) string {
 
 	}
 	return string(buf)
+}
+
+type TableName interface {
+	TableName() string
 }

@@ -1,12 +1,18 @@
 package orm
 
-import "database/sql"
+import (
+	"database/sql"
+
+	"github.com/jackycsl/geektime-go-practical/orm/internal/valuer"
+	"github.com/jackycsl/geektime-go-practical/orm/model"
+)
 
 type DBOption func(db *DB)
 
 type DB struct {
-	r  *registry
-	db *sql.DB
+	r       model.Registry
+	db      *sql.DB
+	creator valuer.Creator
 }
 
 func Open(driver string, dataSourceName string, opts ...DBOption) (*DB, error) {
@@ -19,13 +25,20 @@ func Open(driver string, dataSourceName string, opts ...DBOption) (*DB, error) {
 
 func OpenDB(db *sql.DB, opts ...DBOption) (*DB, error) {
 	res := &DB{
-		r:  NewRegistry(),
-		db: db,
+		r:       model.NewRegistry(),
+		db:      db,
+		creator: valuer.NewUnsafeValue,
 	}
 	for _, opt := range opts {
 		opt(res)
 	}
 	return res, nil
+}
+
+func DBUseReflect() DBOption {
+	return func(db *DB) {
+		db.creator = valuer.NewReflectValue
+	}
 }
 
 func MustOpen(driver string, dataSourceName string, opts ...DBOption) *DB {
