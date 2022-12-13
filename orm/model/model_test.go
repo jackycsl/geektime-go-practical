@@ -301,7 +301,7 @@ func (c *EmptyTableName) TableName() string {
 
 func TestModelWithTableName(t *testing.T) {
 	r := NewRegistry()
-	m, err := r.Register(&TestModel{}, ModelWithTableName("test_model_ttt"))
+	m, err := r.Register(&TestModel{}, WithTableName("test_model_ttt"))
 	require.NoError(t, err)
 	assert.Equal(t, "test_model_ttt", m.TableName)
 }
@@ -332,7 +332,7 @@ func TestModelWithColumnName(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.ColName, func(t *testing.T) {
 			r := NewRegistry()
-			m, err := r.Register(&TestModel{}, ModelWithColumneName(tc.field, tc.ColName))
+			m, err := r.Register(&TestModel{}, WithColumneName(tc.field, tc.ColName))
 			assert.Equal(t, tc.wantErr, err)
 			if err != nil {
 				return

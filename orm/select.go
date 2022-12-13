@@ -207,6 +207,13 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 		return nil, err
 	}
 
+	// if flag {
+	// 	val := valuer.NewReflectValue()
+	// } else {
+	// 	val := valuer.NewUnsafeValue()
+	// }
+	//
+
 	// 你要确认有没有数据
 	if !rows.Next() {
 		// 要不要返回 error？

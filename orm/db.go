@@ -48,3 +48,9 @@ func MustOpen(driver string, dataSourceName string, opts ...DBOption) *DB {
 	}
 	return res
 }
+
+func DBWithRegistry(r model.Registry) DBOption {
+	return func(db *DB) {
+		db.r = r
+	}
+}
