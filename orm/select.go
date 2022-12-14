@@ -102,9 +102,11 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 			s.sb.WriteByte(')')
 		}
 
-		s.sb.WriteByte(' ')
-		s.sb.WriteString(exp.op.String())
-		s.sb.WriteByte(' ')
+		if exp.op != "" {
+			s.sb.WriteByte(' ')
+			s.sb.WriteString(exp.op.String())
+			s.sb.WriteByte(' ')
+		}
 
 		_, ok = exp.right.(Predicate)
 		if ok {
@@ -117,10 +119,17 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 			s.sb.WriteByte(')')
 		}
 	case Column:
-		return s.buildColumn(exp.name)
+		// 这种写法很隐晦
+		exp.alias = ""
+		return s.buildColumn(exp)
 	case value:
 		s.sb.WriteByte('?')
 		s.addArg(exp.val)
+	case RawExpr:
+		s.sb.WriteByte('(')
+		s.sb.WriteString(exp.raw)
+		s.addArg(exp.args...)
+		s.sb.WriteByte(')')
 	default:
 		return errs.NewErrUnsupportedExpression(expr)
 	}
@@ -141,7 +150,7 @@ func (s *Selector[T]) buildColumns() error {
 			}
 			switch c := col.(type) {
 			case Column:
-				err := s.buildColumn(c.name)
+				err := s.buildColumn(c)
 				if err != nil {
 					return err
 				}
@@ -149,38 +158,51 @@ func (s *Selector[T]) buildColumns() error {
 				// 聚合函数名
 				s.sb.WriteString(c.fn)
 				s.sb.WriteByte('(')
-				err := s.buildColumn(c.arg)
+				err := s.buildColumn(Column{name: c.arg})
 				if err != nil {
 					return err
 				}
 				s.sb.WriteByte(')')
 				// 聚合函数本身的别名
+				if c.alias != "" {
+					s.sb.WriteString(" AS `")
+					s.sb.WriteString(c.alias)
+					s.sb.WriteByte('`')
+				}
+			case RawExpr:
+				s.sb.WriteString(c.raw)
+				s.addArg(c.args...)
 			}
-
 		}
-	} else {
-		s.sb.WriteByte('*')
 	}
 	return nil
 }
 
-func (s *Selector[T]) buildColumn(c string) error {
-	fd, ok := s.model.FieldMap[c]
+func (s *Selector[T]) buildColumn(c Column) error {
+	fd, ok := s.model.FieldMap[c.name]
 	// 字段不对，或者说列不对
 	if !ok {
-		return errs.NewErrUnknownField(c)
+		return errs.NewErrUnknownField(c.name)
 	}
 	s.sb.WriteByte('`')
 	s.sb.WriteString(fd.ColName)
 	s.sb.WriteByte('`')
+	if c.alias != "" {
+		s.sb.WriteString(" AS `")
+		s.sb.WriteString(c.alias)
+		s.sb.WriteByte('`')
+	}
 	return nil
 }
 
-func (s *Selector[T]) addArg(val any) {
+func (s *Selector[T]) addArg(vals ...any) {
+	if len(vals) == 0 {
+		return
+	}
 	if s.args == nil {
 		s.args = make([]any, 0, 8)
 	}
-	s.args = append(s.args, val)
+	s.args = append(s.args, vals...)
 }
 
 // 这种也是可行

@@ -16,7 +16,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func TestSelector_Columns(t *testing.T) {
+func TestSelector_Select(t *testing.T) {
 	db := memoryDB(t)
 	testCases := []struct {
 		name      string
@@ -37,10 +37,24 @@ func TestSelector_Columns(t *testing.T) {
 			},
 		},
 		{
+			name: "columns alias",
+			s:    NewSelector[TestModel](db).Select(C("FirstName").As("my_name"), C("LastName")),
+			wantQuery: &Query{
+				SQL: "SELECT `first_name` AS `my_name`,`last_name` FROM `test_model`;",
+			},
+		},
+		{
 			name: "avg",
 			s:    NewSelector[TestModel](db).Select(Avg("Age")),
 			wantQuery: &Query{
 				SQL: "SELECT AVG(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "avg alias",
+			s:    NewSelector[TestModel](db).Select(Avg("Age").As("avg_age")),
+			wantQuery: &Query{
+				SQL: "SELECT AVG(`age`) AS `avg_age` FROM `test_model`;",
 			},
 		},
 		{
@@ -74,6 +88,13 @@ func TestSelector_Columns(t *testing.T) {
 			s:    NewSelector[TestModel](db).Select(Min("Age"), Max("Age")),
 			wantQuery: &Query{
 				SQL: "SELECT MIN(`age`),MAX(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "raw expression",
+			s:    NewSelector[TestModel](db).Select(Raw("COUNT(DISTINCT `first_name`)")),
+			wantQuery: &Query{
+				SQL: "SELECT COUNT(DISTINCT `first_name`) FROM `test_model`;",
 			},
 		},
 	}
@@ -175,6 +196,30 @@ func TestSelector_Build(t *testing.T) {
 			name:    "invalid column",
 			builder: NewSelector[TestModel](db).Where(C("Age").Eq(18).Or(C("XXXX").Eq("Tom"))),
 			wantErr: errs.NewErrUnknownField("XXXX"),
+		},
+		{
+			name:    "raw expression as predicate",
+			builder: NewSelector[TestModel](db).Where(Raw("`id`<?", 18).AsPredicate()),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` WHERE (`id`<?);",
+				Args: []any{18},
+			},
+		},
+		{
+			name:    "raw expression used in predicate",
+			builder: NewSelector[TestModel](db).Where(C("Id").Eq(Raw("`age`+?", 1))),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` WHERE `id` = (`age`+?);",
+				Args: []any{1},
+			},
+		},
+		{
+			name:    "columns alias in where",
+			builder: NewSelector[TestModel](db).Where(C("Id").As("my_id").Eq(18)),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` WHERE `id` = ?;",
+				Args: []any{18},
+			},
 		},
 	}
 	for _, tc := range testCases {

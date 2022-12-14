@@ -60,15 +60,9 @@ func (left Predicate) Or(right Predicate) Predicate {
 	}
 }
 
-func (Predicate) expr() {}
-
 type value struct {
 	val any
 }
 
-func (value) expr() {}
-
-// Expression 是一个标记接口，代表表达式
-type Expression interface {
-	expr()
-}
+func (value) expr()     {}
+func (Predicate) expr() {}
