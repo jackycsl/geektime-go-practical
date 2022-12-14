@@ -16,6 +16,80 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+func TestSelector_Columns(t *testing.T) {
+	db := memoryDB(t)
+	testCases := []struct {
+		name      string
+		s         QueryBuilder
+		wantQuery *Query
+		wantErr   error
+	}{
+		{
+			name:    "invalid column",
+			s:       NewSelector[TestModel](db).Select(C("Invalid")),
+			wantErr: errs.NewErrUnknownField("Invalid"),
+		},
+		{
+			name: "multiple columns",
+			s:    NewSelector[TestModel](db).Select(C("FirstName"), C("LastName")),
+			wantQuery: &Query{
+				SQL: "SELECT `first_name`,`last_name` FROM `test_model`;",
+			},
+		},
+		{
+			name: "avg",
+			s:    NewSelector[TestModel](db).Select(Avg("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT AVG(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "count",
+			s:    NewSelector[TestModel](db).Select(Count("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT COUNT(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "max",
+			s:    NewSelector[TestModel](db).Select(Max("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT MAX(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "min",
+			s:    NewSelector[TestModel](db).Select(Min("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT MIN(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name:    "aggregate invalid columns",
+			s:       NewSelector[TestModel](db).Select(Min("Invalid")),
+			wantErr: errs.NewErrUnknownField("Invalid"),
+		},
+		{
+			name: "multiple aggregate",
+			s:    NewSelector[TestModel](db).Select(Min("Age"), Max("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT MIN(`age`),MAX(`age`) FROM `test_model`;",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			q, err := tc.s.Build()
+			assert.Equal(t, tc.wantErr, err)
+			if err != nil {
+				return
+			}
+			assert.Equal(t, tc.wantQuery, q)
+		})
+	}
+}
+
 func TestSelector_Build(t *testing.T) {
 	db := memoryDB(t)
 	testCases := []struct {

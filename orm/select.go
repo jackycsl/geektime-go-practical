@@ -8,12 +8,20 @@ import (
 	"github.com/jackycsl/geektime-go-practical/orm/model"
 )
 
+// Selectable 是一个标记接口
+// 它代表的是查找的列，或者聚合函数等
+// SELECT XXX 部分
+type Selectable interface {
+	selectable()
+}
+
 type Selector[T any] struct {
-	table string
-	model *model.Model
-	where []Predicate
-	sb    *strings.Builder
-	args  []any
+	table   string
+	model   *model.Model
+	where   []Predicate
+	sb      *strings.Builder
+	args    []any
+	columns []Selectable
 
 	db *DB
 }
@@ -33,7 +41,13 @@ func (s *Selector[T]) Build() (*Query, error) {
 		return nil, err
 	}
 	sb := s.sb
-	sb.WriteString("SELECT * FROM ")
+	sb.WriteString("SELECT ")
+
+	if err = s.buildColumns(); err != nil {
+		return nil, err
+	}
+
+	sb.WriteString(" FROM ")
 	// 我怎么把表名拿到
 	if s.table == "" {
 		sb.WriteByte('`')
@@ -103,14 +117,7 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 			s.sb.WriteByte(')')
 		}
 	case Column:
-		fd, ok := s.model.FieldMap[exp.name]
-		// 字段不对，或者说列不对
-		if !ok {
-			return errs.NewErrUnknownField(exp.name)
-		}
-		s.sb.WriteByte('`')
-		s.sb.WriteString(fd.ColName)
-		s.sb.WriteByte('`')
+		return s.buildColumn(exp.name)
 	case value:
 		s.sb.WriteByte('?')
 		s.addArg(exp.val)
@@ -120,11 +127,76 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 	return nil
 }
 
+func (s *Selector[T]) buildColumns() error {
+	if len(s.columns) == 0 {
+		// 没有指定列
+		s.sb.WriteByte('*')
+		return nil
+	}
+
+	if len(s.columns) > 0 {
+		for i, col := range s.columns {
+			if i > 0 {
+				s.sb.WriteByte(',')
+			}
+			switch c := col.(type) {
+			case Column:
+				err := s.buildColumn(c.name)
+				if err != nil {
+					return err
+				}
+			case Aggregate:
+				// 聚合函数名
+				s.sb.WriteString(c.fn)
+				s.sb.WriteByte('(')
+				err := s.buildColumn(c.arg)
+				if err != nil {
+					return err
+				}
+				s.sb.WriteByte(')')
+				// 聚合函数本身的别名
+			}
+
+		}
+	} else {
+		s.sb.WriteByte('*')
+	}
+	return nil
+}
+
+func (s *Selector[T]) buildColumn(c string) error {
+	fd, ok := s.model.FieldMap[c]
+	// 字段不对，或者说列不对
+	if !ok {
+		return errs.NewErrUnknownField(c)
+	}
+	s.sb.WriteByte('`')
+	s.sb.WriteString(fd.ColName)
+	s.sb.WriteByte('`')
+	return nil
+}
+
 func (s *Selector[T]) addArg(val any) {
 	if s.args == nil {
 		s.args = make([]any, 0, 8)
 	}
 	s.args = append(s.args, val)
+}
+
+// 这种也是可行
+// s.Select("first_name,last_name")
+// func (s *Selector[T]) SelectV1(cols string) *Selector[T] {
+// 	return s
+// }
+
+// func (s *Selector[T]) Select(cols ...string) *Selector[T] {
+// 	s.columns = cols
+// 	return s
+// }
+
+func (s *Selector[T]) Select(cols ...Selectable) *Selector[T] {
+	s.columns = cols
+	return s
 }
 
 func (s *Selector[T]) From(table string) *Selector[T] {
