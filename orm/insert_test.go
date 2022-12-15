@@ -72,6 +72,41 @@ func TestInserter_Build(t *testing.T) {
 				Args: []any{int64(12), "Tom", int64(13), "DaMing"},
 			},
 		},
+		{
+			name: "upsert-update value",
+			i: NewInserter[TestModel](db).Values(&TestModel{
+				Id:        12,
+				FirstName: "Tom",
+				Age:       18,
+				LastName:  &sql.NullString{String: "Jerry", Valid: true},
+			}).OnDuplicateKey().Update(Assign("FirstName", "Deng"),
+				Assign("Age", 19)),
+			wantQuery: &Query{
+				SQL: "INSERT INTO `test_model`(`id`,`first_name`,`age`,`last_name`) VALUES (?,?,?,?) " +
+					"ON DUPLICATE KEY UPDATE `first_name`=?,`age`=?;",
+				Args: []any{int64(12), "Tom", int8(18), &sql.NullString{String: "Jerry", Valid: true}, "Deng", 19},
+			},
+		},
+		{
+			name: "upsert-update column",
+			i: NewInserter[TestModel](db).Values(&TestModel{
+				Id:        12,
+				FirstName: "Tom",
+				Age:       18,
+				LastName:  &sql.NullString{String: "Jerry", Valid: true},
+			}, &TestModel{
+				Id:        13,
+				FirstName: "DaMing",
+				Age:       19,
+				LastName:  &sql.NullString{String: "Deng", Valid: true},
+			}).OnDuplicateKey().Update(C("FirstName"), C("Age")),
+			wantQuery: &Query{
+				SQL: "INSERT INTO `test_model`(`id`,`first_name`,`age`,`last_name`) VALUES (?,?,?,?),(?,?,?,?) " +
+					"ON DUPLICATE KEY UPDATE `first_name`=VALUES(`first_name`),`age`=VALUES(`age`);",
+				Args: []any{int64(12), "Tom", int8(18), &sql.NullString{String: "Jerry", Valid: true},
+					int64(13), "DaMing", int8(19), &sql.NullString{String: "Deng", Valid: true}},
+			},
+		},
 	}
 
 	for _, tc := range testsCases {

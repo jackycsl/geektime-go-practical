@@ -8,15 +8,48 @@ import (
 	"github.com/jackycsl/geektime-go-practical/orm/model"
 )
 
+type OnDuplicateKeyBuilder[T any] struct {
+	i *Inserter[T]
+}
+
+type OnDuplicateKey[T any] struct {
+	assigns []Assignable
+}
+
+func (o *OnDuplicateKeyBuilder[T]) Update(assigns ...Assignable) *Inserter[T] {
+	o.i.onDuplicateKey = &OnDuplicateKey[T]{
+		assigns: assigns,
+	}
+	return o.i
+}
+
+type Assignable interface {
+	assign()
+}
+
 type Inserter[T any] struct {
 	values  []*T
 	db      *DB
 	columns []string
+
+	// onDuplicateKey []Assignable
+	onDuplicateKey *OnDuplicateKey[T]
 }
 
 func NewInserter[T any](db *DB) *Inserter[T] {
 	return &Inserter[T]{
 		db: db,
+	}
+}
+
+// func (i *Inserter[T]) OnDuplicateKey(assigns ...Assignable) *Inserter[T] {
+// 	i.onDuplicateKey = assigns
+// 	return i
+// }
+
+func (i *Inserter[T]) OnDuplicateKey() *OnDuplicateKeyBuilder[T] {
+	return &OnDuplicateKeyBuilder[T]{
+		i: i,
 	}
 }
 
@@ -89,6 +122,45 @@ func (i *Inserter[T]) Build() (*Query, error) {
 		}
 		sb.WriteByte(')')
 	}
+
+	if i.onDuplicateKey != nil {
+		sb.WriteString(" ON DUPLICATE KEY UPDATE ")
+		for idx, assign := range i.onDuplicateKey.assigns {
+			if idx > 0 {
+				sb.WriteByte(',')
+			}
+			switch a := assign.(type) {
+			case Assignment:
+				fd, ok := m.FieldMap[a.col]
+				// 字段不对，或者说列不对
+				if !ok {
+					return nil, errs.NewErrUnknownField(a.col)
+				}
+				sb.WriteByte('`')
+				sb.WriteString(fd.ColName)
+				sb.WriteByte('`')
+				sb.WriteString("=?")
+				args = append(args, a.val)
+			case Column:
+				fd, ok := m.FieldMap[a.name]
+				// 字段不对，或者说列不对
+				if !ok {
+					return nil, errs.NewErrUnknownField(a.name)
+				}
+				sb.WriteByte('`')
+				sb.WriteString(fd.ColName)
+				sb.WriteByte('`')
+				sb.WriteString("=VALUES(")
+				sb.WriteByte('`')
+				sb.WriteString(fd.ColName)
+				sb.WriteByte('`')
+				sb.WriteByte(')')
+			default:
+				return nil, errs.NewErrUnsupportedAssignable(assign)
+			}
+		}
+	}
+
 	sb.WriteByte(';')
 	return &Query{SQL: sb.String(), Args: args}, nil
 }
