@@ -54,6 +54,24 @@ func TestInserter_Build(t *testing.T) {
 					int64(13), "DaMing", int8(19), &sql.NullString{String: "Deng", Valid: true}},
 			},
 		},
+		{
+			name: "partial columns",
+			i: NewInserter[TestModel](db).Columns("Id", "FirstName").Values(&TestModel{
+				Id:        12,
+				FirstName: "Tom",
+				Age:       18,
+				LastName:  &sql.NullString{String: "Jerry", Valid: true},
+			}, &TestModel{
+				Id:        13,
+				FirstName: "DaMing",
+				Age:       19,
+				LastName:  &sql.NullString{String: "Deng", Valid: true},
+			}),
+			wantQuery: &Query{
+				SQL:  "INSERT INTO `test_model`(`id`,`first_name`) VALUES (?,?),(?,?);",
+				Args: []any{int64(12), "Tom", int64(13), "DaMing"},
+			},
+		},
 	}
 
 	for _, tc := range testsCases {
