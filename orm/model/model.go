@@ -34,7 +34,7 @@ type Field struct {
 	// 列名
 	ColName string
 	// 代表的是字段的类型
-	Typ reflect.Type
+	Type reflect.Type
 
 	// 字段相对于结构体本身的偏移量
 	Offset uintptr
@@ -125,7 +125,7 @@ func (r *registry) Register(entity any, opts ...Option) (*Model, error) {
 		fdMeta := &Field{
 			GoName:  fd.Name,
 			ColName: colName,
-			Typ:     fd.Type,
+			Type:    fd.Type,
 			Offset:  fd.Offset,
 		}
 		fieldMap[fd.Name] = fdMeta

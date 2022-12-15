@@ -24,6 +24,19 @@ func NewReflectValue(model *model.Model, val any) Value {
 	}
 }
 
+func (r reflectValue) Field(name string) (any, error) {
+	// 检测 name 是否合法
+	// _, ok := r.val.Type().FieldByName(name)
+	// if !ok {
+	// 	// 报错
+	// }
+	val := r.val.FieldByName(name)
+	// if val == (reflect.Value{}) {
+	// 	// 报错
+	// }
+	return val.Interface(), nil
+}
+
 func (r reflectValue) SetColumns(rows *sql.Rows) error {
 	// 在这里，继续处理结果集
 
@@ -48,7 +61,7 @@ func (r reflectValue) SetColumns(rows *sql.Rows) error {
 		// 反射创建一个实例
 		// 这里创建的实例是原本类型的指针类型
 		// 例如 fd.Type = int，那么val 是 *int
-		val := reflect.New(fd.Typ)
+		val := reflect.New(fd.Type)
 		vals = append(vals, val.Interface())
 		// 记得要调用 Elem，因为 fd.Type = int，那么val 是 *int
 		valElem = append(valElem, val.Elem())

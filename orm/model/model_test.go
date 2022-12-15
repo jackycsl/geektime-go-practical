@@ -32,24 +32,24 @@ func TestRegistry_Register(t *testing.T) {
 					{
 						ColName: "id",
 						GoName:  "Id",
-						Typ:     reflect.TypeOf(int64(0)),
+						Type:    reflect.TypeOf(int64(0)),
 					},
 					{
 						ColName: "first_name",
 						GoName:  "FirstName",
-						Typ:     reflect.TypeOf(""),
+						Type:    reflect.TypeOf(""),
 						Offset:  8,
 					},
 					{
 						ColName: "age",
 						GoName:  "Age",
-						Typ:     reflect.TypeOf(int8(0)),
+						Type:    reflect.TypeOf(int8(0)),
 						Offset:  24,
 					},
 					{
 						ColName: "last_name",
 						GoName:  "LastName",
-						Typ:     reflect.TypeOf(&sql.NullString{}),
+						Type:    reflect.TypeOf(&sql.NullString{}),
 						Offset:  32,
 					},
 				},
@@ -112,24 +112,24 @@ func TestRegistry_get(t *testing.T) {
 					{
 						ColName: "id",
 						GoName:  "Id",
-						Typ:     reflect.TypeOf(int64(0)),
+						Type:    reflect.TypeOf(int64(0)),
 					},
 					{
 						ColName: "first_name",
 						GoName:  "FirstName",
-						Typ:     reflect.TypeOf(""),
+						Type:    reflect.TypeOf(""),
 						Offset:  8,
 					},
 					{
 						ColName: "age",
 						GoName:  "Age",
-						Typ:     reflect.TypeOf(int8(0)),
+						Type:    reflect.TypeOf(int8(0)),
 						Offset:  24,
 					},
 					{
 						ColName: "last_name",
 						GoName:  "LastName",
-						Typ:     reflect.TypeOf(&sql.NullString{}),
+						Type:    reflect.TypeOf(&sql.NullString{}),
 						Offset:  32,
 					},
 				},
@@ -151,7 +151,7 @@ func TestRegistry_get(t *testing.T) {
 					{
 						ColName: "first_name_t",
 						GoName:  "FirstName",
-						Typ:     reflect.TypeOf(""),
+						Type:    reflect.TypeOf(""),
 					},
 				},
 			},
@@ -170,7 +170,7 @@ func TestRegistry_get(t *testing.T) {
 					{
 						ColName: "first_name",
 						GoName:  "FirstName",
-						Typ:     reflect.TypeOf(""),
+						Type:    reflect.TypeOf(""),
 					},
 				},
 			},
@@ -199,7 +199,7 @@ func TestRegistry_get(t *testing.T) {
 					{
 						ColName: "first_name",
 						GoName:  "FirstName",
-						Typ:     reflect.TypeOf(""),
+						Type:    reflect.TypeOf(""),
 					},
 				},
 			},
@@ -213,7 +213,7 @@ func TestRegistry_get(t *testing.T) {
 					{
 						ColName: "first_name",
 						GoName:  "FirstName",
-						Typ:     reflect.TypeOf(""),
+						Type:    reflect.TypeOf(""),
 					},
 				},
 			},
@@ -227,7 +227,7 @@ func TestRegistry_get(t *testing.T) {
 					{
 						ColName: "first_name",
 						GoName:  "FirstName",
-						Typ:     reflect.TypeOf(""),
+						Type:    reflect.TypeOf(""),
 					},
 				},
 			},
@@ -241,7 +241,7 @@ func TestRegistry_get(t *testing.T) {
 					{
 						ColName: "first_name",
 						GoName:  "FirstName",
-						Typ:     reflect.TypeOf(""),
+						Type:    reflect.TypeOf(""),
 					},
 				},
 			},

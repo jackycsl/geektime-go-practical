@@ -2,7 +2,6 @@ package orm
 
 import (
 	"context"
-	"reflect"
 
 	"github.com/jackycsl/geektime-go-practical/orm/internal/errs"
 	"github.com/jackycsl/geektime-go-practical/orm/model"
@@ -117,17 +116,22 @@ func (i *Inserter[T]) Build() (*Query, error) {
 	i.sb.WriteString(" VALUES ")
 	// 预估的参数数量是：我有多少行乘以我有多少个字段
 	i.args = make([]any, 0, len(i.values)*len(fields))
-	for j, val := range i.values {
+	for j, v := range i.values {
 		if j > 0 {
 			i.sb.WriteByte(',')
 		}
 		i.sb.WriteByte('(')
+		val := i.db.creator(i.model, v)
+
 		for idx, field := range fields {
 			if idx > 0 {
 				i.sb.WriteByte(',')
 			}
 			i.sb.WriteByte('?')
-			arg := reflect.ValueOf(val).Elem().FieldByName(field.GoName).Interface()
+			arg, err := val.Field(field.GoName)
+			if err != nil {
+				return nil, err
+			}
 			i.addArg(arg)
 		}
 		i.sb.WriteByte(')')
