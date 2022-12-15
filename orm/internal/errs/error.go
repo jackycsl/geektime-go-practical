@@ -10,7 +10,8 @@ var (
 
 	// errUnsupportedExpression = errors.New("orm: 不支持的表达式类型")
 
-	ErrNoRows = errors.New("orm: 没有数据")
+	ErrNoRows        = errors.New("orm: 没有数据")
+	ErrInsertZeroRow = errors.New("orm: 插入 0 行")
 )
 
 // func NewErrUnsupportedExpressionV1(expr any) error {
