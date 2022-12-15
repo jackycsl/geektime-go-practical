@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"reflect"
 
 	"github.com/jackycsl/geektime-go-practical/orm/internal/errs"
@@ -141,4 +142,54 @@ func (i *Inserter[T]) Build() (*Query, error) {
 
 	i.sb.WriteByte(';')
 	return &Query{SQL: i.sb.String(), Args: i.args}, nil
+}
+
+// func (i *Inserter[T]) Exec(ctx context.Context) Result {
+// 	var err error
+// 	i.model, err = i.r.Get(new(T))
+// 	if err != nil {
+// 		return Result{
+// 			err: err,
+// 		}
+// 	}
+
+// 	res := exec(ctx, i.sess, i.core, &QueryContext{
+// 		Type:    "INSERT",
+// 		Builder: i,
+// 		Model:   i.model,
+// 	})
+// 	// var t *T
+// 	// if val, ok := res.Result.(*T); ok {
+// 	// 	t = val
+// 	// }
+// 	// return t, res.Err
+// 	var sqlRes sql.Result
+// 	if res.Result != nil {
+// 		sqlRes = res.Result.(sql.Result)
+// 	}
+// 	return Result{
+// 		err: res.Err,
+// 		res: sqlRes,
+// 	}
+// }
+
+func (i *Inserter[T]) Exec(ctx context.Context) Result {
+	q, err := i.Build()
+	if err != nil {
+		return Result{
+			err: err,
+		}
+	}
+	res, err := i.db.db.Exec(q.SQL, q.Args...)
+	return Result{
+		err: err,
+		res: res,
+	}
+}
+
+type MySQLInserter struct {
+}
+
+type PostgreSQLInserter[T any] struct {
+	Inserter[T]
 }
