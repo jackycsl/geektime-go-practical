@@ -3,7 +3,10 @@ package orm
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"log"
 
+	"github.com/jackycsl/geektime-go-practical/orm/internal/errs"
 	"github.com/jackycsl/geektime-go-practical/orm/internal/valuer"
 	"github.com/jackycsl/geektime-go-practical/orm/model"
 )
@@ -50,6 +53,56 @@ func (db *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) {
 	return &Tx{tx: tx}, nil
 }
 
+type txKey struct{}
+
+// ctx, tx, err := db.BeginTxV2()
+// doSomething(ctx, tx)
+func (db *DB) BeginTxV2(ctx context.Context, opts *sql.TxOptions) (context.Context, *Tx, error) {
+	val := ctx.Value(txKey{})
+	tx, ok := val.(*Tx)
+	// 存在一个事务，并且这个事务没有被提交或者回滚
+	if ok && !tx.done {
+		return ctx, tx, nil
+	}
+	tx, err := db.BeginTx(ctx, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx = context.WithValue(ctx, txKey{}, tx)
+	return ctx, tx, nil
+}
+
+// 要求前面的人一定要开好事务
+// func (db *DB) BeginTxV3(ctx context.Context, opts *sql.TxOptions) (*Tx, error){
+// 	val := ctx.Value(txKey{})
+// 	tx, ok := val.(*Tx)
+// 	if ok {
+// 		return tx, nil
+// 	}
+// 	return nil, errors.New("没有开事务")
+// }
+
+func (db *DB) DoTx(ctx context.Context,
+	fn func(ctx context.Context, tx *Tx) error,
+	opts *sql.TxOptions) (err error) {
+	tx, err := db.BeginTx(ctx, opts)
+	if err != nil {
+		return err
+	}
+	panicked := true
+	defer func() {
+		if panicked || err != nil {
+			e := tx.Rollback()
+			err = errs.NewErrFailedToRollbackTx(err, e, panicked)
+		} else {
+			err = tx.Commit()
+		}
+	}()
+	err = fn(ctx, tx)
+	panicked = false
+	return err
+}
+
 func (db *DB) queryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	return db.db.QueryContext(ctx, query, args...)
 }
@@ -82,4 +135,13 @@ func MustOpen(driver string, dataSourceName string, opts ...DBOption) *DB {
 		panic(err)
 	}
 	return res
+}
+
+func (db *DB) Wait() error {
+	err := db.db.Ping()
+	for err == driver.ErrBadConn {
+		log.Println("数据库启动中")
+		err = db.db.Ping()
+	}
+	return nil
 }
