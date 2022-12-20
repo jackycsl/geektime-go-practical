@@ -4,16 +4,13 @@ import (
 	"strings"
 
 	"github.com/jackycsl/geektime-go-practical/orm/internal/errs"
-	"github.com/jackycsl/geektime-go-practical/orm/model"
 )
 
 type builder struct {
-	sb    strings.Builder
-	args  []any
-	model *model.Model
-
-	dialect Dialect
-	quoter  byte
+	core
+	sb     strings.Builder
+	args   []any
+	quoter byte
 }
 
 func (b *builder) quote(name string) {
