@@ -2,6 +2,7 @@ package orm
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/jackycsl/geektime-go-practical/orm/internal/errs"
 	"github.com/jackycsl/geektime-go-practical/orm/model"
@@ -179,16 +180,58 @@ func (i *Inserter[T]) Build() (*Query, error) {
 // }
 
 func (i *Inserter[T]) Exec(ctx context.Context) Result {
-	q, err := i.Build()
+	var err error
+	i.model, err = i.r.Get(new(T))
 	if err != nil {
 		return Result{
 			err: err,
 		}
 	}
-	res, err := i.sess.execContext(ctx, q.SQL, q.Args...)
+
+	root := i.execHandler
+	for j := len(i.mdls) - 1; j >= 0; j-- {
+		root = i.mdls[j](root)
+	}
+
+	res := root(ctx, &QueryContext{
+		Type:    "INSERT",
+		Builder: i,
+		Model:   i.model,
+	})
+	// var t *T
+	// if val, ok := res.Result.(*T); ok {
+	// 	t = val
+	// }
+	// return t, res.Err
+	var sqlRes sql.Result
+	if res.Result != nil {
+		sqlRes = res.Result.(sql.Result)
+	}
 	return Result{
-		err: err,
-		res: res,
+		err: res.Err,
+		res: sqlRes,
+	}
+}
+
+var _ Handler = (&Inserter[any]{}).execHandler
+
+func (i *Inserter[T]) execHandler(ctx context.Context, qc *QueryContext) *QueryResult {
+	q, err := i.Build()
+	if err != nil {
+		return &QueryResult{
+			Err: err,
+			Result: Result{
+				err: err,
+			},
+		}
+	}
+	res, err := i.sess.execContext(ctx, q.SQL, q.Args...)
+	return &QueryResult{
+		Err: err,
+		Result: Result{
+			err: err,
+			res: res,
+		},
 	}
 }
 

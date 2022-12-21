@@ -285,17 +285,49 @@ func (s *Selector[T]) Where(ps ...Predicate) *Selector[T] {
 // 	return tp, err
 // }
 
-func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
-	q, err := s.Build()
+func (r *Selector[T]) Get(ctx context.Context) (*T, error) {
+	var err error
+	r.model, err = r.r.Get(new(T))
 	if err != nil {
 		return nil, err
+	}
+	root := r.getHandler
+	for i := len(r.mdls) - 1; i >= 0; i-- {
+		root = r.mdls[i](root)
+	}
+	res := root(ctx, &QueryContext{
+		Type:    "SELECT",
+		Builder: r,
+		Model:   r.model,
+	})
+	// var t *T
+	// if val, ok := res.Result.(*T); ok {
+	// 	t = val
+	// }
+	// return t, res.Err
+	if res.Result != nil {
+		return res.Result.(*T), res.Err
+	}
+	return nil, res.Err
+}
+
+var _ Handler = (&Selector[any]{}).getHandler
+
+func (s *Selector[T]) getHandler(ctx context.Context, qc *QueryContext) *QueryResult {
+	q, err := s.Build()
+	if err != nil {
+		return &QueryResult{
+			Err: err,
+		}
 	}
 
 	// 在这里，就是要发起查询，并且处理结果集
 	rows, err := s.sess.queryContext(ctx, q.SQL, q.Args...)
 	// 这个是查询错误
 	if err != nil {
-		return nil, err
+		return &QueryResult{
+			Err: err,
+		}
 	}
 
 	// if flag {
@@ -309,15 +341,54 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	if !rows.Next() {
 		// 要不要返回 error？
 		// 返回 error，和 sql 包语义保持一致
-		return nil, ErrNoRows
+		return &QueryResult{
+			Err: ErrNoRows,
+		}
 	}
 
 	tp := new(T)
 	val := s.creator(s.model, tp)
 	err = val.SetColumns(rows)
 
-	return tp, err
+	return &QueryResult{
+		Result: tp,
+		Err:    err,
+	}
 }
+
+// func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
+// 	q, err := s.Build()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	// 在这里，就是要发起查询，并且处理结果集
+// 	rows, err := s.sess.queryContext(ctx, q.SQL, q.Args...)
+// 	// 这个是查询错误
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	// if flag {
+// 	// 	val := valuer.NewReflectValue()
+// 	// } else {
+// 	// 	val := valuer.NewUnsafeValue()
+// 	// }
+// 	//
+
+// 	// 你要确认有没有数据
+// 	if !rows.Next() {
+// 		// 要不要返回 error？
+// 		// 返回 error，和 sql 包语义保持一致
+// 		return nil, ErrNoRows
+// 	}
+
+// 	tp := new(T)
+// 	val := s.creator(s.model, tp)
+// 	err = val.SetColumns(rows)
+
+// 	return tp, err
+// }
 
 func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
 	panic("implement me")
