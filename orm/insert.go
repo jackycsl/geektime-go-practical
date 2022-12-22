@@ -83,22 +83,25 @@ func (i *Inserter[T]) Build() (*Query, error) {
 		return nil, errs.ErrInsertZeroRow
 	}
 	i.sb.WriteString("INSERT INTO ")
-	m, err := i.r.Get(i.values[0])
-	i.model = m
-	if err != nil {
-		return nil, err
+	if i.model == nil {
+		m, err := i.r.Get(i.values[0])
+		i.model = m
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	// 拼接表名
-	i.quote(m.TableName)
+	i.quote(i.model.TableName)
 	// 一定要显示指定列的顺序，不然我们不知道数据库中默认的顺序
 	// 我们要构造 `test_model`(col1, col2...)
 	i.sb.WriteByte('(')
 
-	fields := m.Fields
+	fields := i.model.Fields
 	if len(i.columns) > 0 {
 		fields = make([]*model.Field, 0, len(i.columns))
 		for _, fd := range i.columns {
-			fdMeta, ok := m.FieldMap[fd]
+			fdMeta, ok := i.model.FieldMap[fd]
 			if !ok {
 				return nil, errs.NewErrUnknownField(fd)
 			}
@@ -140,7 +143,7 @@ func (i *Inserter[T]) Build() (*Query, error) {
 	}
 
 	if i.onDuplicateKey != nil {
-		err = i.dialect.buildUpsert(&i.builder, i.onDuplicateKey)
+		err := i.dialect.buildUpsert(&i.builder, i.onDuplicateKey)
 		if err != nil {
 			return nil, err
 		}

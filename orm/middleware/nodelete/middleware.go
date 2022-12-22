@@ -1,0 +1,30 @@
+package nodelete
+
+import (
+	"context"
+	"errors"
+
+	"time"
+
+	"github.com/jackycsl/geektime-go-practical/orm"
+)
+
+type MiddlewareBuilder struct {
+}
+
+func NewMiddlewareBuilder(threshold time.Duration) *MiddlewareBuilder {
+	return &MiddlewareBuilder{}
+}
+
+func (m MiddlewareBuilder) Build() orm.Middleware {
+	return func(next orm.Handler) orm.Handler {
+		return func(ctx context.Context, qc *orm.QueryContext) *orm.QueryResult {
+			if qc.Type == "DELETE" {
+				return &orm.QueryResult{
+					Err: errors.New("禁止 Delete 语句"),
+				}
+			}
+			return next(ctx, qc)
+		}
+	}
+}

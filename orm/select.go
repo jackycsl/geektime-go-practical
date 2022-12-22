@@ -34,14 +34,17 @@ func NewSelector[T any](sess Session) *Selector[T] {
 }
 
 func (s *Selector[T]) Build() (*Query, error) {
-	var err error
-	s.model, err = s.r.Get(new(T))
-	if err != nil {
-		return nil, err
+	if s.model == nil {
+		var err error
+		s.model, err = s.r.Get(new(T))
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	s.sb.WriteString("SELECT ")
 
-	if err = s.buildColumns(); err != nil {
+	if err := s.buildColumns(); err != nil {
 		return nil, err
 	}
 
