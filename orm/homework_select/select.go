@@ -127,7 +127,7 @@ func (s *Selector[T]) buildColumns() error {
 			}
 		case Aggregate:
 			if err := s.buildAggregate(val, true); err != nil {
-				return nil
+				return err
 			}
 		case RawExpr:
 			s.sb.WriteString(val.raw)
