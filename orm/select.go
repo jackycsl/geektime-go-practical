@@ -249,44 +249,6 @@ func (s *Selector[T]) buildColumns() error {
 	return nil
 }
 
-func (s *Selector[T]) buildColumn(c Column) error {
-	switch table := c.table.(type) {
-	case nil:
-		fd, ok := s.model.FieldMap[c.name]
-		// 字段不对，或者说列不对
-		if !ok {
-			return errs.NewErrUnknownField(c.name)
-		}
-		s.quote(fd.ColName)
-		if c.alias != "" {
-			s.sb.WriteString(" AS ")
-			s.quote(c.alias)
-		}
-	case Table:
-		m, err := s.r.Get(table.entity)
-		if err != nil {
-			return err
-		}
-		fd, ok := m.FieldMap[c.name]
-		if !ok {
-			return errs.NewErrUnknownField(c.name)
-		}
-		if table.alias != "" {
-			s.quote(table.alias)
-			s.sb.WriteByte('.')
-		}
-		s.quote(fd.ColName)
-		if c.alias != "" {
-			s.sb.WriteString(" AS ")
-			s.quote(c.alias)
-		}
-	default:
-		return errs.NewErrUnsupportedTable(table)
-	}
-
-	return nil
-}
-
 func (s *Selector[T]) addArg(vals ...any) {
 	if len(vals) == 0 {
 		return
