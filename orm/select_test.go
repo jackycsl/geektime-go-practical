@@ -16,6 +16,65 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+func TestSelector_Join(t *testing.T) {
+	db := memoryDB(t)
+	type Order struct {
+		Id        int
+		UsingCol1 string
+		UsingCol2 string
+	}
+
+	type OrderDetail struct {
+		OrderId int
+		ItemId  int
+
+		UsingCol1 string
+		UsingCol2 string
+	}
+
+	type Item struct {
+		Id int
+	}
+
+	testCases := []struct {
+		name      string
+		s         QueryBuilder
+		wantQuery *Query
+		wantErr   error
+	}{
+		{
+			name: "specify table",
+			s:    NewSelector[Order](db).From(TableOf(&OrderDetail{})),
+			wantQuery: &Query{
+				SQL: "SELECT * FROM `order_detail`;",
+			},
+		},
+		{
+			name: "join-using",
+			s: func() QueryBuilder {
+				t1 := TableOf(&Order{})
+				t2 := TableOf(&OrderDetail{})
+				t3 := t1.Join(t2).Using("UsingCol1", "UsingCol2")
+				return NewSelector[Order](db).From(t3)
+			}(),
+			wantQuery: &Query{
+				SQL: "SELECT * FROM (`order` JOIN `order_detail` USING (`using_col1`,`using_col2`));",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			q, err := tc.s.Build()
+			assert.Equal(t, tc.wantErr, err)
+			if err != nil {
+				return
+			}
+			assert.Equal(t, tc.wantQuery, q)
+		})
+	}
+}
+
 func TestSelector_Select(t *testing.T) {
 	db := memoryDB(t)
 	testCases := []struct {
@@ -126,30 +185,6 @@ func TestSelector_Build(t *testing.T) {
 			builder: NewSelector[TestModel](db),
 			wantQuery: &Query{
 				SQL:  "SELECT * FROM `test_model`;",
-				Args: nil,
-			},
-		},
-		{
-			name:    "from",
-			builder: NewSelector[TestModel](db).From("`test_model`"),
-			wantQuery: &Query{
-				SQL:  "SELECT * FROM `test_model`;",
-				Args: nil,
-			},
-		},
-		{
-			name:    "empty from",
-			builder: NewSelector[TestModel](db).From(""),
-			wantQuery: &Query{
-				SQL:  "SELECT * FROM `test_model`;",
-				Args: nil,
-			},
-		},
-		{
-			name:    "from db",
-			builder: NewSelector[TestModel](db).From("`test_db`.`test_model`"),
-			wantQuery: &Query{
-				SQL:  "SELECT * FROM `test_db`.`test_model`;",
 				Args: nil,
 			},
 		},
