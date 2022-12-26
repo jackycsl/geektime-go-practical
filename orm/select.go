@@ -136,6 +136,17 @@ func (s *Selector[T]) buildTable(table TableReference) error {
 			s.sb.WriteByte(')')
 		}
 
+		if len(t.on) > 0 {
+			s.sb.WriteString(" ON ")
+			p := t.on[0]
+			for i := 1; i < len(t.on); i++ {
+				p = p.And(t.on[i])
+			}
+			if err = s.buildExpression(p); err != nil {
+				return err
+			}
+		}
+
 		s.sb.WriteByte(')')
 	default:
 		return errs.NewErrUnsupportedTable(table)
@@ -239,19 +250,40 @@ func (s *Selector[T]) buildColumns() error {
 }
 
 func (s *Selector[T]) buildColumn(c Column) error {
-	fd, ok := s.model.FieldMap[c.name]
-	// 字段不对，或者说列不对
-	if !ok {
-		return errs.NewErrUnknownField(c.name)
+	switch table := c.table.(type) {
+	case nil:
+		fd, ok := s.model.FieldMap[c.name]
+		// 字段不对，或者说列不对
+		if !ok {
+			return errs.NewErrUnknownField(c.name)
+		}
+		s.quote(fd.ColName)
+		if c.alias != "" {
+			s.sb.WriteString(" AS ")
+			s.quote(c.alias)
+		}
+	case Table:
+		m, err := s.r.Get(table.entity)
+		if err != nil {
+			return err
+		}
+		fd, ok := m.FieldMap[c.name]
+		if !ok {
+			return errs.NewErrUnknownField(c.name)
+		}
+		if table.alias != "" {
+			s.quote(table.alias)
+			s.sb.WriteByte('.')
+		}
+		s.quote(fd.ColName)
+		if c.alias != "" {
+			s.sb.WriteString(" AS ")
+			s.quote(c.alias)
+		}
+	default:
+		return errs.NewErrUnsupportedTable(table)
 	}
-	s.sb.WriteByte('`')
-	s.sb.WriteString(fd.ColName)
-	s.sb.WriteByte('`')
-	if c.alias != "" {
-		s.sb.WriteString(" AS `")
-		s.sb.WriteString(c.alias)
-		s.sb.WriteByte('`')
-	}
+
 	return nil
 }
 
