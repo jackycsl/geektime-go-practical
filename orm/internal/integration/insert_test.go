@@ -29,9 +29,9 @@ func TestMySQLInsert(t *testing.T) {
 	})
 }
 
-// func (s *InsertSuite) TearDownTest() {
-// 	orm.RawQuery[test.SimpleStruct](s.db, "TRUNCATE TABLE `simple_struct`").Exec(context.Background())
-// }
+func (s *InsertSuite) TearDownTest() {
+	orm.RawQuery[test.SimpleStruct](s.db, "TRUNCATE TABLE `simple_struct`").Exec(context.Background())
+}
 
 func (i *InsertSuite) TestInsert() {
 	db := i.db

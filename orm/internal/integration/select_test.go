@@ -18,13 +18,17 @@ type SelectSuite struct {
 	Suite
 }
 
-func TestSelectSuite(t *testing.T) {
+func TestMySQLSelectSuite(t *testing.T) {
 	suite.Run(t, &SelectSuite{
 		Suite{
 			driver: "mysql",
 			dsn:    "root:root@tcp(localhost:13306)/integration_test",
 		},
 	})
+}
+
+func (s *SelectSuite) TearDownSuite() {
+	orm.RawQuery[test.SimpleStruct](s.db, "TRUNCATE TABLE `simple_struct`").Exec(context.Background())
 }
 
 func (s *SelectSuite) SetupSuite() {
