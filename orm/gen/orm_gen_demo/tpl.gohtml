@@ -1,0 +1,25 @@
+package {{ .Package}}
+
+import (
+    "github.com/jackycsl/geektime-go-practical/orm/"
+    {{range $idx, $import := .Imports}}
+    {{$import}}
+    {{end}}
+)
+
+{{ $ops := .Ops}}
+
+{{range $idx, $type := .Types}}
+    const (
+{{range $jdx, $field := $type.Fields}}
+        {{$type.Name}}{{$field.Name}} = "{{$type.Name}}"
+{{end}}
+    )
+    {{range $jdx, $field := $type.Fields}}
+        {{range $kdx, $op := $ops}}
+            func {{$type.Name}}{{$field.Name}}{{$op}}(val {{$field.Type}}) orm.Predicate {
+                return orm.C("{{$field.Name}}").{{$op}}(val)
+            }
+        {{end}}
+    {{end}}
+{{end}}
