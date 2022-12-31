@@ -37,6 +37,12 @@ func (s *Selector[T]) Build() (*Query, error) {
 	if err != nil {
 		return nil, err
 	}
+	if s.sb.Len() > 0 {
+		return &Query{
+			SQL:  s.sb.String(),
+			Args: s.args,
+		}, nil
+	}
 	s.sb.WriteString("SELECT ")
 	if err = s.buildColumns(); err != nil {
 		return nil, err
@@ -106,6 +112,8 @@ func (s *Selector[T]) buildTable(table TableReference) error {
 		}
 	case Join:
 		return s.buildJoin(tab)
+	case Subquery:
+		return s.buildSubquery(tab, true)
 	default:
 		return errs.NewErrUnsupportedExpressionType(tab)
 	}
@@ -213,7 +221,16 @@ func (s *Selector[T]) Limit(limit int) *Selector[T] {
 }
 
 func (s *Selector[T]) AsSubquery(alias string) Subquery {
-	panic("implement me")
+	tbl := s.table
+	if tbl == nil {
+		tbl = TableOf(new(T))
+	}
+	return Subquery{
+		s:       s,
+		alias:   alias,
+		table:   tbl,
+		columns: s.columns,
+	}
 }
 
 func (s *Selector[T]) Get(ctx context.Context) (*T, error) {

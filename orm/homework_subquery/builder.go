@@ -53,6 +53,26 @@ func (b *builder) colName(table TableReference, fd string) (string, error) {
 			return "", errs.NewErrUnknownField(fd)
 		}
 		return fdMeta.ColName, nil
+	case Join:
+		colName, err := b.colName(tab.left, fd)
+		if err != nil {
+			return colName, nil
+		}
+		return b.colName(tab.right, fd)
+	case Subquery:
+		if len(tab.columns) > 0 {
+			for _, c := range tab.columns {
+				if c.selectedAlias() == fd {
+					return fd, nil
+				}
+
+				if c.fieldName() == fd {
+					return b.colName(c.target(), fd)
+				}
+			}
+			return "", errs.NewErrUnknownField(fd)
+		}
+		return b.colName(tab.table, fd)
 	default:
 		return "", errs.NewErrUnsupportedExpressionType(tab)
 	}
@@ -108,8 +128,32 @@ func (b *builder) buildExpression(e Expression) error {
 		return b.buildBinaryExpr(binaryExpr(exp))
 	case binaryExpr:
 		return b.buildBinaryExpr(exp)
+	case SubqueryExpr:
+		b.sb.WriteString(exp.pred)
+		b.sb.WriteByte(' ')
+		return b.buildSubquery(exp.s, false)
+	case Subquery:
+		return b.buildSubquery(exp, false)
 	default:
 		return errs.NewErrUnsupportedExpressionType(exp)
+	}
+	return nil
+}
+
+func (b *builder) buildSubquery(tab Subquery, useAlias bool) error {
+	q, err := tab.s.Build()
+	if err != nil {
+		return err
+	}
+	b.sb.WriteByte('(')
+	b.sb.WriteString(q.SQL[:len(q.SQL)-1])
+	if len(q.Args) > 0 {
+		b.addArgs(q.Args...)
+	}
+	b.sb.WriteByte(')')
+	if useAlias {
+		b.sb.WriteString(" AS ")
+		b.quote(tab.alias)
 	}
 	return nil
 }
