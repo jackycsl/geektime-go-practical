@@ -47,6 +47,12 @@ func (c *Context) RespJSONOK(val any) error {
 	return c.RespJSON(http.StatusOK, val)
 }
 
+func (c *Context) RespServerError(msg string) error {
+	c.RespData = []byte(msg)
+	c.RespStatusCode = 500
+	return nil
+}
+
 func (c *Context) RespJSON(code int, val any) error {
 	bs, err := json.Marshal(val)
 	if err != nil {

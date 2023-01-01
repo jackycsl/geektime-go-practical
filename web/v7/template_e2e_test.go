@@ -1,9 +1,9 @@
 package web
 
 import (
+	"html/template"
 	"log"
 	"testing"
-	"text/template"
 
 	"github.com/stretchr/testify/require"
 )

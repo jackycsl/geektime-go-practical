@@ -1,11 +1,11 @@
 package web
 
 import (
+	"html/template"
 	"log"
 	"mime/multipart"
 	"path/filepath"
 	"testing"
-	"text/template"
 
 	"github.com/stretchr/testify/require"
 )

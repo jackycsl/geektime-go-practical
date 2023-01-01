@@ -3,7 +3,7 @@ package web
 import (
 	"bytes"
 	"context"
-	"text/template"
+	"html/template"
 )
 
 type TemplateEngine interface {
