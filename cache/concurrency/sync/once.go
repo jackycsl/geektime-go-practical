@@ -42,9 +42,16 @@ func (s *singleton) DoSomething() {
 var s *singleton
 var singletonOnce sync.Once
 
+// 懒加载
 func GetSingleton() *singleton {
 	singletonOnce.Do(func() {
 		s = &singleton{}
 	})
 	return s
+}
+
+// 饥饿
+func init() {
+	// 用包初始化函数取代 once
+	s = &singleton{}
 }
