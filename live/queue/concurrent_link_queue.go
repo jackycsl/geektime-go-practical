@@ -21,6 +21,15 @@ type ConcurrentLinkedQueue[T any] struct {
 	count uint64
 }
 
+func NewConcurrentLinkedQueue[T any]() *ConcurrentLinkedQueue[T] {
+	head := &node[T]{}
+	ptr := unsafe.Pointer(head)
+	return &ConcurrentLinkedQueue[T]{
+		head: ptr,
+		tail: ptr,
+	}
+}
+
 func (c *ConcurrentLinkedQueue[T]) EnQueue(ctx context.Context, data T) error {
 	newNode := &node[T]{
 		val: data,
