@@ -14,16 +14,28 @@ var (
 	errKeyNotFound = errors.New("cache：键不存在")
 )
 
+type BuildInMapCacheOption func(cache *BuildInMapCache)
+
 type BuildInMapCache struct {
 	data map[string]*item
 	//data sync.Map
-	mutex sync.RWMutex
-	close chan struct{}
+	mutex     sync.RWMutex
+	close     chan struct{}
+	onEvicted func(key string, val any)
 }
 
-func NewBuildInMapCache(interval time.Duration) *BuildInMapCache {
+func NewBuildInMapCache(interval time.Duration, opts ...BuildInMapCacheOption) *BuildInMapCache {
 	res := &BuildInMapCache{
-		data: make(map[string]*item, 100),
+		data:  make(map[string]*item, 100),
+		close: make(chan struct{}),
+		onEvicted: func(key string, val any) {
+
+		},
+		// maxCnt: 1000
+	}
+
+	for _, opt := range opts {
+		opt(res)
 	}
 
 	go func() {
@@ -38,7 +50,7 @@ func NewBuildInMapCache(interval time.Duration) *BuildInMapCache {
 						break
 					}
 					if val.deadlineBefore(t) {
-						delete(res.data, key)
+						res.delete(key)
 					}
 					i++
 				}
@@ -52,10 +64,19 @@ func NewBuildInMapCache(interval time.Duration) *BuildInMapCache {
 	return res
 }
 
+func BuildInMapCacheWithEvictedCallback(fn func(key string, val any)) BuildInMapCacheOption {
+	return func(cache *BuildInMapCache) {
+		cache.onEvicted = fn
+	}
+}
+
 func (b *BuildInMapCache) Set(ctx context.Context, key string, val any, expiration time.Duration) error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
+	return b.set(key, val, expiration)
+}
 
+func (b *BuildInMapCache) set(key string, val any, expiration time.Duration) error {
 	var dl time.Time
 	if expiration > 0 {
 		dl = time.Now().Add(expiration)
@@ -64,27 +85,27 @@ func (b *BuildInMapCache) Set(ctx context.Context, key string, val any, expirati
 		val:      val,
 		deadline: dl,
 	}
-
 	return nil
 }
 
 func (b *BuildInMapCache) Get(ctx context.Context, key string) (any, error) {
 	b.mutex.RLock()
-	defer b.mutex.RUnlock()
 	res, ok := b.data[key]
+	b.mutex.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("%w, key: %s", errKeyNotFound, key)
 	}
+
 	now := time.Now()
 	if res.deadlineBefore(now) {
 		b.mutex.Lock()
 		defer b.mutex.Unlock()
-		res, ok := b.data[key]
+		res, ok = b.data[key]
 		if !ok {
 			return nil, fmt.Errorf("%w, key: %s", errKeyNotFound, key)
 		}
 		if res.deadlineBefore(now) {
-			delete(b.data, key)
+			b.delete(key)
 			return nil, fmt.Errorf("%w, key: %s", errKeyNotFound, key)
 		}
 	}
@@ -94,8 +115,17 @@ func (b *BuildInMapCache) Get(ctx context.Context, key string) (any, error) {
 func (b *BuildInMapCache) Delete(ctx context.Context, key string) error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	delete(b.data, key)
+	b.delete(key)
 	return nil
+}
+
+func (b *BuildInMapCache) delete(key string) {
+	itm, ok := b.data[key]
+	if !ok {
+		return
+	}
+	delete(b.data, key)
+	b.onEvicted(key, itm.val)
 }
 
 // 我要是调用两次 close?
