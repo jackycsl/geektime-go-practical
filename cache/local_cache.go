@@ -119,6 +119,17 @@ func (b *BuildInMapCache) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
+func (b *BuildInMapCache) LoadAndDelete(ctx context.Context, key string) (any, error) {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+	val, ok := b.data[key]
+	if !ok {
+		return nil, errKeyNotFound
+	}
+	b.delete(key)
+	return val.val, nil
+}
+
 func (b *BuildInMapCache) delete(key string) {
 	itm, ok := b.data[key]
 	if !ok {

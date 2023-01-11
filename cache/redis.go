@@ -10,6 +10,8 @@ import (
 	// _ "github.com/golang/mock/mockgen/model"
 )
 
+var _ Cache = &RedisCache{}
+
 var (
 	errFailedToSetCache = errors.New("cache: 写入 redis 失败")
 )
@@ -50,6 +52,10 @@ func (r *RedisCache) Set(ctx context.Context, key string, val any, expiration ti
 
 func (r *RedisCache) Get(ctx context.Context, key string) (any, error) {
 	return r.client.Get(ctx, key).Result()
+}
+
+func (r *RedisCache) LoadAndDelete(ctx context.Context, key string) (any, error) {
+	return r.client.GetDel(ctx, key).Result()
 }
 
 func (r *RedisCache) Delete(ctx context.Context, key string) error {
