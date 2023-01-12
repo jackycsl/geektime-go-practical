@@ -77,3 +77,10 @@ func TestBuildInMapCache_Loop(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, 1, cnt)
 }
+
+//func TestBuildInMapCache_WriteBack(t *testing.T) {
+//	NewBuildInMapCache(time.Second, BuildInMapCacheWithEvictedCallback(func(key string, val any) {
+//		// 刷新到数据库
+//
+//	}))
+//}
