@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	_ "embed"
@@ -28,11 +29,53 @@ var (
 // Client 就是对 redis.Cmdable 的二次封装
 type Client struct {
 	client redis.Cmdable
+
+	//valGenerator func() string
 }
 
 func NewClient(client redis.Cmdable) *Client {
 	return &Client{
 		client: client,
+	}
+}
+func (c *Client) Lock(ctx context.Context,
+	key string,
+	expiration time.Duration,
+	timeout time.Duration, retry RetryStrategy) (*Lock, error) {
+	val := uuid.New().String()
+	//val := c.valGenerator()
+	var timer *time.Timer
+	for {
+		lctx, cancel := context.WithTimeout(ctx, timeout)
+		res, err := c.client.Eval(lctx, luaLock, []string{key}, val, expiration.Seconds()).Result()
+		cancel()
+		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
+		if res == "OK" {
+			return &Lock{
+				client:     c.client,
+				key:        key,
+				value:      val,
+				expiration: expiration,
+				unlockChan: make(chan struct{}, 1),
+			}, nil
+		}
+
+		interval, ok := retry.Next()
+		if !ok {
+			return nil, fmt.Errorf("redis-lock: 超出重试限制, %w", ErrFailedToPreemptLock)
+		}
+		if timer == nil {
+			timer = time.NewTimer(interval)
+		} else {
+			timer.Reset(interval)
+		}
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 }
 
@@ -51,6 +94,7 @@ func (c *Client) TryLock(ctx context.Context, key string, expiration time.Durati
 		key:        key,
 		value:      val,
 		expiration: expiration,
+		unlockChan: make(chan struct{}, 1),
 	}, nil
 }
 
@@ -131,7 +175,7 @@ func (l *Lock) AutoRefresh(interval time.Duration, timeout time.Duration) error 
 			// 出现了 error 了怎么办？
 			err := l.Refresh(ctx)
 			cancel()
-			if err == context.DeadlineExceeded {
+			if errors.Is(err, context.DeadlineExceeded) {
 				timeoutChan <- struct{}{}
 				continue
 			}
@@ -144,7 +188,7 @@ func (l *Lock) AutoRefresh(interval time.Duration, timeout time.Duration) error 
 			// 出现了 error 了怎么办？
 			err := l.Refresh(ctx)
 			cancel()
-			if err == context.DeadlineExceeded {
+			if errors.Is(err, context.DeadlineExceeded) {
 				timeoutChan <- struct{}{}
 				continue
 			}
