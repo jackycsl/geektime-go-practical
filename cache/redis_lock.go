@@ -62,10 +62,15 @@ type Lock struct {
 	key        string
 	value      string
 	expiration time.Duration
+	unlockChan chan struct{}
 }
 
 func (l *Lock) Unlock(ctx context.Context) error {
 	res, err := l.client.Eval(ctx, luaUnlock, []string{l.key}, l.value).Int64()
+	defer func() {
+		// close(l.unlockChan)
+		l.unlockChan <- struct{}{}
+	}()
 	// if err == redis.Nil {
 	// 	return ErrLockNotHold
 	// }
@@ -112,4 +117,42 @@ func (l *Lock) Refresh(ctx context.Context) error {
 		return ErrLockNotHold
 	}
 	return nil
+}
+
+func (l *Lock) AutoRefresh(interval time.Duration, timeout time.Duration) error {
+	timeoutChan := make(chan struct{}, 1)
+	// 间隔多久续约一次
+	ticker := time.NewTicker(interval)
+	for {
+		select {
+		case <-ticker.C:
+			// 刷新的超时时间怎么设置
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			// 出现了 error 了怎么办？
+			err := l.Refresh(ctx)
+			cancel()
+			if err == context.DeadlineExceeded {
+				timeoutChan <- struct{}{}
+				continue
+			}
+			if err != nil {
+				return err
+			}
+		case <-timeoutChan:
+			// 刷新的超时时间怎么设置
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			// 出现了 error 了怎么办？
+			err := l.Refresh(ctx)
+			cancel()
+			if err == context.DeadlineExceeded {
+				timeoutChan <- struct{}{}
+				continue
+			}
+			if err != nil {
+				return err
+			}
+		case <-l.unlockChan:
+			return nil
+		}
+	}
 }

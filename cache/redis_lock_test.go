@@ -330,3 +330,11 @@ func ExampleLock_Refresh() {
 	stopChan <- struct{}{}
 	// l.Unlock(context.Background())
 }
+
+func ExampleLock_AutoRefresh() {
+	var l *Lock
+	go func() {
+		// 这里返回 error 了，你要中断业务
+		l.AutoRefresh(time.Second*10, time.Second)
+	}()
+}
