@@ -10,6 +10,7 @@ import (
 
 	redis "github.com/go-redis/redis/v9"
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 )
 
 var (
@@ -31,6 +32,7 @@ type Client struct {
 	client redis.Cmdable
 
 	//valGenerator func() string
+	g singleflight.Group
 }
 
 func NewClient(client redis.Cmdable) *Client {
@@ -38,6 +40,32 @@ func NewClient(client redis.Cmdable) *Client {
 		client: client,
 	}
 }
+
+func (c *Client) SingleflightLock(ctx context.Context,
+	key string,
+	expiration time.Duration,
+	timeout time.Duration, retry RetryStrategy) (*Lock, error) {
+	for {
+		flag := false
+		resCh := c.g.DoChan(key, func() (interface{}, error) {
+			flag = true
+			return c.Lock(ctx, key, expiration, timeout, retry)
+		})
+		select {
+		case res := <-resCh:
+			if flag {
+				c.g.Forget(key)
+				if res.Err != nil {
+					return nil, res.Err
+				}
+				return res.Val.(*Lock), nil
+			}
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
 func (c *Client) Lock(ctx context.Context,
 	key string,
 	expiration time.Duration,
