@@ -82,7 +82,7 @@ func (s *Server) Invoke(ctx context.Context, req *Request) (*Response, error) {
 		return nil, errors.New("你要调用的服务不存在")
 	}
 
-	resp, err := service.invoke(ctx, req.MethodName, req.Arg)
+	resp, err := service.invoke(ctx, req.MethodName, req.Data)
 	if err != nil {
 		return nil, err
 	}

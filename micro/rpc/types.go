@@ -11,11 +11,29 @@ type Proxy interface {
 }
 
 type Request struct {
+	HeadLength uint32
+	BodyLength uint32
+	RequestId  uint32
+	Version    uint8
+	Compressor uint8
+	Serializer uint8
+
 	ServiceName string
 	MethodName  string
-	Arg         []byte
+	Meta        map[string]string
+
+	Data []byte
 }
 
 type Response struct {
+	HeadLength uint32
+	BodyLength uint32
+	RequestId  uint32
+	Version    uint8
+	Compressor uint8
+	Serializer uint8
+
+	Error []byte
+
 	Data []byte
 }
