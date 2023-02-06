@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net"
 	"reflect"
+
+	"github.com/jackycsl/geektime-go-practical/micro/rpc/message"
 )
 
 type Server struct {
@@ -56,7 +58,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 			return err
 		}
 
-		req := &Request{}
+		req := &message.Request{}
 		err = json.Unmarshal(reqBs, req)
 		if err != nil {
 			return err
@@ -76,7 +78,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 	}
 }
 
-func (s *Server) Invoke(ctx context.Context, req *Request) (*Response, error) {
+func (s *Server) Invoke(ctx context.Context, req *message.Request) (*message.Response, error) {
 	service, ok := s.services[req.ServiceName]
 	if !ok {
 		return nil, errors.New("你要调用的服务不存在")
@@ -87,7 +89,7 @@ func (s *Server) Invoke(ctx context.Context, req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	return &Response{
+	return &message.Response{
 		Data: resp,
 	}, err
 }

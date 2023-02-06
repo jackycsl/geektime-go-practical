@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/jackycsl/geektime-go-practical/micro/rpc/message"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -38,11 +39,11 @@ func Test_setFuncField(t *testing.T) {
 			name: "user service",
 			mock: func(ctrl *gomock.Controller) Proxy {
 				p := NewMockProxy(ctrl)
-				p.EXPECT().Invoke(gomock.Any(), &Request{
+				p.EXPECT().Invoke(gomock.Any(), &message.Request{
 					ServiceName: "user-service",
 					MethodName:  "GetById",
 					Data:        []byte(`{"Id":123}`),
-				}).Return(&Response{}, nil)
+				}).Return(&message.Response{}, nil)
 				return p
 			},
 			service: &UserService{},
