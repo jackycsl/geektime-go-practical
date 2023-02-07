@@ -107,3 +107,21 @@ func DecodeReq(data []byte) *Request {
 	}
 	return req
 }
+
+func (req *Request) CalculateHeaderLength() {
+	// 不要忘了分隔符
+	headLength := 15 + len(req.ServiceName) + 1 + len(req.MethodName) + 1
+	for key, value := range req.Meta {
+		headLength += len(key)
+		// key 和 value 之间的分隔符
+		headLength++
+		headLength += len(value)
+		headLength++
+		// 和下一个 key value 的分隔符
+	}
+	req.HeadLength = uint32(headLength)
+}
+
+func (req *Request) CalculateBodyLength() {
+	req.BodyLength = uint32(len(req.Data))
+}

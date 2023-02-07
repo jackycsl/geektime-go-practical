@@ -66,11 +66,3 @@ func TestRespEncodeDecode(t *testing.T) {
 		})
 	}
 }
-
-func (resp *Response) CalculateHeaderLength() {
-	resp.HeadLength = 15 + uint32(len(resp.Error))
-}
-
-func (resp *Response) CalculateBodyLength() {
-	resp.BodyLength = uint32(len(resp.Data))
-}
