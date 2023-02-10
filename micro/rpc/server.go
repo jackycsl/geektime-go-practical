@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net"
 	"reflect"
+	"strconv"
+	"time"
 
 	"github.com/jackycsl/geektime-go-practical/micro/rpc/message"
 	"github.com/jackycsl/geektime-go-practical/micro/rpc/serialize"
@@ -71,11 +73,18 @@ func (s *Server) handleConn(conn net.Conn) error {
 		req := message.DecodeReq(reqBs)
 
 		ctx := context.Background()
+		cancel := func() {}
+		if deadlineStr, ok := req.Meta["deadline"]; ok {
+			if deadline, er := strconv.ParseInt(deadlineStr, 10, 64); er == nil {
+				ctx, cancel = context.WithDeadline(ctx, time.UnixMilli(deadline))
+			}
+		}
 		oneway, ok := req.Meta["one-way"]
 		if ok && oneway == "true" {
 			ctx = CtxWithOneway(ctx)
 		}
 		resp, err := s.Invoke(ctx, req)
+		cancel()
 		if err != nil {
 			// 处理业务error
 			resp.Error = []byte(err.Error())
@@ -143,7 +152,7 @@ type reflectionStub struct {
 func (s *reflectionStub) invoke(ctx context.Context, req *message.Request) ([]byte, error) {
 	method := s.value.MethodByName(req.MethodName)
 	in := make([]reflect.Value, 2)
-	in[0] = reflect.ValueOf(context.Background())
+	in[0] = reflect.ValueOf(ctx)
 	inReq := reflect.New(method.Type().In(1).Elem())
 	serializer, ok := s.serializers[req.Serializer]
 	if !ok {
