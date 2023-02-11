@@ -10,7 +10,7 @@ type Request struct {
 	BodyLength uint32
 	RequestID  uint32
 	Version    uint8
-	Compresser uint8
+	Compressor uint8
 	Serializer uint8
 
 	ServiceName string
@@ -31,7 +31,7 @@ func EncodeReq(req *Request) []byte {
 	binary.BigEndian.PutUint32(bs[8:12], req.RequestID)
 	// 4. 写入 Version
 	bs[12] = req.Version
-	bs[13] = req.Compresser
+	bs[13] = req.Compressor
 	bs[14] = req.Serializer
 	cur := bs[15:]
 
@@ -68,7 +68,7 @@ func DecodeReq(data []byte) *Request {
 	// 3. 又是四个字节，对应于 Request ID
 	req.RequestID = binary.BigEndian.Uint32(data[8:12])
 	req.Version = data[12]
-	req.Compresser = data[13]
+	req.Compressor = data[13]
 	req.Serializer = data[14]
 
 	header := data[15:req.HeadLength]

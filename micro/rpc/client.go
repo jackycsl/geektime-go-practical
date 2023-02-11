@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jackycsl/geektime-go-practical/micro/rpc/compress"
 	"github.com/jackycsl/geektime-go-practical/micro/rpc/message"
 	"github.com/jackycsl/geektime-go-practical/micro/rpc/serialize"
 	"github.com/jackycsl/geektime-go-practical/micro/rpc/serialize/json"
@@ -20,10 +21,10 @@ const numOfLengthBytes = 8
 // InitService 要为 GetById 之类的函数类型的字段赋值
 func (c *Client) InitService(service Service) error {
 	// 在这里初始化一个 Proxy
-	return setFuncField(service, c, c.serializer)
+	return setFuncField(service, c, c.serializer, c.compressor)
 }
 
-func setFuncField(service Service, p Proxy, s serialize.Serializer) error {
+func setFuncField(service Service, p Proxy, s serialize.Serializer, c compress.Compressor) error {
 	if service == nil {
 		return errors.New("rpc: 不支持 nil")
 	}
@@ -53,6 +54,10 @@ func setFuncField(service Service, p Proxy, s serialize.Serializer) error {
 				if err != nil {
 					return []reflect.Value{retVal, reflect.ValueOf(err)}
 				}
+				reqData, err = c.Compress(reqData)
+				if err != nil {
+					return []reflect.Value{retVal, reflect.ValueOf(err)}
+				}
 				meta := make(map[string]string, 2)
 				// 我确实设置了超时
 				if deadline, ok := ctx.Deadline(); ok {
@@ -66,6 +71,7 @@ func setFuncField(service Service, p Proxy, s serialize.Serializer) error {
 					MethodName:  fieldTyp.Name,
 					Data:        reqData,
 					Serializer:  s.Code(),
+					Compressor:  c.Code(),
 					Meta:        meta,
 				}
 
@@ -84,7 +90,12 @@ func setFuncField(service Service, p Proxy, s serialize.Serializer) error {
 				}
 
 				if len(resp.Data) > 0 {
-					err = s.Decode(resp.Data, retVal.Interface())
+					var data []byte
+					data, err = c.Uncompress(resp.Data)
+					if err != nil {
+						return []reflect.Value{retVal, reflect.ValueOf(err)}
+					}
+					err = s.Decode(data, retVal.Interface())
 					if err != nil {
 						// 反序列化的 error
 						return []reflect.Value{retVal, reflect.ValueOf(err)}
@@ -112,6 +123,7 @@ func setFuncField(service Service, p Proxy, s serialize.Serializer) error {
 type Client struct {
 	pool       pool.Pool
 	serializer serialize.Serializer
+	compressor compress.Compressor
 }
 
 type ClientOption func(client *Client)
@@ -119,6 +131,12 @@ type ClientOption func(client *Client)
 func ClientWithSerializer(sl serialize.Serializer) ClientOption {
 	return func(client *Client) {
 		client.serializer = sl
+	}
+}
+
+func ClientWithCompressor(c compress.Compressor) ClientOption {
+	return func(client *Client) {
+		client.compressor = c
 	}
 }
 
@@ -141,6 +159,7 @@ func NewClient(addr string, opts ...ClientOption) (*Client, error) {
 	res := &Client{
 		pool:       p,
 		serializer: &json.Serializer{},
+		compressor: compress.DoNothingCompressor{},
 	}
 	for _, opt := range opts {
 		opt(res)

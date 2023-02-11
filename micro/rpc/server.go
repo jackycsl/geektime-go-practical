@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jackycsl/geektime-go-practical/micro/rpc/compress"
 	"github.com/jackycsl/geektime-go-practical/micro/rpc/message"
 	"github.com/jackycsl/geektime-go-practical/micro/rpc/serialize"
 	"github.com/jackycsl/geektime-go-practical/micro/rpc/serialize/json"
@@ -16,14 +17,17 @@ import (
 type Server struct {
 	services    map[string]reflectionStub
 	serializers map[uint8]serialize.Serializer
+	compressors map[uint8]compress.Compressor
 }
 
 func NewServer() *Server {
 	res := &Server{
 		services:    make(map[string]reflectionStub, 16),
 		serializers: make(map[uint8]serialize.Serializer, 4),
+		compressors: make(map[uint8]compress.Compressor, 4),
 	}
 	res.RegisterSerializer(&json.Serializer{})
+	res.RegisterCompressor(&compress.DoNothingCompressor{})
 	return res
 }
 
@@ -31,11 +35,16 @@ func (s *Server) RegisterSerializer(sl serialize.Serializer) {
 	s.serializers[sl.Code()] = sl
 }
 
+func (s *Server) RegisterCompressor(c compress.Compressor) {
+	s.compressors[c.Code()] = c
+}
+
 func (s *Server) RegisterService(service Service) {
 	s.services[service.Name()] = reflectionStub{
 		s:           service,
 		value:       reflect.ValueOf(service),
 		serializers: s.serializers,
+		compressors: s.compressors,
 	}
 }
 
@@ -118,7 +127,7 @@ func (s *Server) Invoke(ctx context.Context, req *message.Request) (*message.Res
 	resp := &message.Response{
 		RequestID:  req.RequestID,
 		Version:    req.Version,
-		Compresser: req.Compresser,
+		Compressor: req.Compressor,
 		Serializer: req.Serializer,
 	}
 	if !ok {
@@ -147,6 +156,7 @@ type reflectionStub struct {
 	s           Service
 	value       reflect.Value
 	serializers map[uint8]serialize.Serializer
+	compressors map[uint8]compress.Compressor
 }
 
 func (s *reflectionStub) invoke(ctx context.Context, req *message.Request) ([]byte, error) {
@@ -154,11 +164,21 @@ func (s *reflectionStub) invoke(ctx context.Context, req *message.Request) ([]by
 	in := make([]reflect.Value, 2)
 	in[0] = reflect.ValueOf(ctx)
 	inReq := reflect.New(method.Type().In(1).Elem())
+
+	compressor, ok := s.compressors[req.Compressor]
+	if !ok {
+		return nil, errors.New("micro: 不支持的压缩算法")
+	}
+	data, err := compressor.Uncompress(req.Data)
+	if err != nil {
+		return nil, err
+	}
+
 	serializer, ok := s.serializers[req.Serializer]
 	if !ok {
 		return nil, errors.New("micro: 不支持的序列化协议")
 	}
-	err := serializer.Decode(req.Data, inReq.Interface())
+	err = serializer.Decode(data, inReq.Interface())
 	if err != nil {
 		return nil, err
 	}
@@ -177,6 +197,10 @@ func (s *reflectionStub) invoke(ctx context.Context, req *message.Request) ([]by
 	} else {
 		var er error
 		res, er = serializer.Encode(results[0].Interface())
+		if er != nil {
+			return nil, er
+		}
+		res, er = compressor.Compress(res)
 		if er != nil {
 			return nil, er
 		}

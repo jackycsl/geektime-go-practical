@@ -7,7 +7,7 @@ type Response struct {
 	BodyLength uint32
 	RequestID  uint32
 	Version    uint8
-	Compresser uint8
+	Compressor uint8
 	Serializer uint8
 
 	Error []byte
@@ -26,7 +26,7 @@ func EncodeResp(resp *Response) []byte {
 	binary.BigEndian.PutUint32(bs[8:12], resp.RequestID)
 	// 4. 写入 Version
 	bs[12] = resp.Version
-	bs[13] = resp.Compresser
+	bs[13] = resp.Compressor
 	bs[14] = resp.Serializer
 	cur := bs[15:]
 
@@ -45,7 +45,7 @@ func DecodeResp(data []byte) *Response {
 	// 3. 又是四个字节，对应于 Request ID
 	resp.RequestID = binary.BigEndian.Uint32(data[8:12])
 	resp.Version = data[12]
-	resp.Compresser = data[13]
+	resp.Compressor = data[13]
 	resp.Serializer = data[14]
 	if resp.HeadLength > 15 {
 		resp.Error = data[15:resp.HeadLength]

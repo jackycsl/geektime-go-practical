@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/jackycsl/geektime-go-practical/micro/rpc/compress"
 	"github.com/jackycsl/geektime-go-practical/micro/rpc/message"
 	"github.com/jackycsl/geektime-go-practical/micro/rpc/serialize/json"
 	"github.com/stretchr/testify/assert"
@@ -51,11 +52,12 @@ func Test_setFuncField(t *testing.T) {
 		},
 	}
 	s := &json.Serializer{}
+	c := &compress.DoNothingCompressor{}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			err := setFuncField(tc.service, tc.mock(ctrl), s)
+			err := setFuncField(tc.service, tc.mock(ctrl), s, c)
 			assert.Equal(t, tc.wantErr, err)
 			if err != nil {
 				return

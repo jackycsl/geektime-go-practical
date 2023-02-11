@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackycsl/geektime-go-practical/micro/proto/gen"
+	"github.com/jackycsl/geektime-go-practical/micro/rpc/compress/gzip"
 	"github.com/jackycsl/geektime-go-practical/micro/rpc/serialize/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -257,6 +258,72 @@ func TestTimeout(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resp, er := usClient.GetById(tc.mock(), &GetByIdReq{Id: 123})
+			assert.Equal(t, tc.wantErr, er)
+			assert.Equal(t, tc.wantResp, resp)
+		})
+	}
+}
+
+func TestCompressor(t *testing.T) {
+	server := NewServer()
+	service := &UserServiceServer{}
+	server.RegisterService(service)
+	server.RegisterCompressor(&gzip.Compressor{})
+
+	go func() {
+		err := server.Start("tcp", ":8081")
+		t.Log(err)
+	}()
+	time.Sleep(time.Second * 3)
+	usClient := &UserService{}
+	client, err := NewClient(":8081", ClientWithCompressor(&gzip.Compressor{}))
+	require.NoError(t, err)
+	err = client.InitService(usClient)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name string
+		mock func()
+
+		wantErr  error
+		wantResp *GetByIdResp
+	}{
+		{
+			name: "no error",
+			mock: func() {
+				service.Err = nil
+				service.Msg = "hello, world"
+			},
+			wantResp: &GetByIdResp{
+				Msg: "hello, world",
+			},
+		},
+		{
+			name: "error",
+			mock: func() {
+				service.Msg = ""
+				service.Err = errors.New("mock error")
+			},
+			wantResp: &GetByIdResp{},
+			wantErr:  errors.New("mock error"),
+		},
+		{
+			name: "both",
+			mock: func() {
+				service.Msg = "hello, world"
+				service.Err = errors.New("mock error")
+			},
+			wantResp: &GetByIdResp{
+				Msg: "hello, world",
+			},
+			wantErr: errors.New("mock error"),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.mock()
+			resp, er := usClient.GetById(context.Background(), &GetByIdReq{Id: 123})
+
 			assert.Equal(t, tc.wantErr, er)
 			assert.Equal(t, tc.wantResp, resp)
 		})

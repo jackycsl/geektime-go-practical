@@ -16,7 +16,7 @@ func TestRespEncodeDecode(t *testing.T) {
 			resp: &Response{
 				RequestID:  123,
 				Version:    12,
-				Compresser: 13,
+				Compressor: 13,
 				Serializer: 14,
 				Error:      []byte("this is error"),
 				Data:       []byte("hello, world"),
@@ -27,7 +27,7 @@ func TestRespEncodeDecode(t *testing.T) {
 			resp: &Response{
 				RequestID:  123,
 				Version:    12,
-				Compresser: 13,
+				Compressor: 13,
 				Serializer: 14,
 				Error:      []byte("this is error"),
 			},
@@ -37,7 +37,7 @@ func TestRespEncodeDecode(t *testing.T) {
 			resp: &Response{
 				RequestID:  123,
 				Version:    12,
-				Compresser: 13,
+				Compressor: 13,
 				Serializer: 14,
 				Data:       []byte("hello, world"),
 			},
