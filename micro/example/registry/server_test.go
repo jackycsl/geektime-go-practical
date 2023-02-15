@@ -1,4 +1,4 @@
-package grpc_resolver
+package registry
 
 import (
 	"context"
