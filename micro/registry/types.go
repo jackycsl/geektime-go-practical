@@ -24,6 +24,8 @@ type ServiceInstance struct {
 	// Address 就是最关键的，定位信息
 
 	// 这边你可以任意加字段，完全取决于你的服务治理需要什么字段
+
+	Weight uint32
 }
 
 type Event struct {

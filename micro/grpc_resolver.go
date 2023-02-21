@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/jackycsl/geektime-go-practical/micro/registry"
+	"google.golang.org/grpc/attributes"
 	"google.golang.org/grpc/resolver"
 )
 
@@ -86,7 +87,10 @@ func (g *grpcResolver) resolve() {
 	}
 	address := make([]resolver.Address, 0, len(instances))
 	for _, si := range instances {
-		address = append(address, resolver.Address{Addr: si.Address})
+		address = append(address, resolver.Address{
+			Addr:       si.Address,
+			Attributes: attributes.New("weight", si.Weight),
+		})
 	}
 
 	err = g.cc.UpdateState(resolver.State{
