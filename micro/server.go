@@ -18,6 +18,7 @@ type Server struct {
 	*grpc.Server
 	listener net.Listener
 	weight   uint32
+	group    string
 }
 
 func NewServer(name string, opts ...ServerOption) (*Server, error) {
@@ -35,6 +36,12 @@ func NewServer(name string, opts ...ServerOption) (*Server, error) {
 func ServerWithWeight(weight uint32) ServerOption {
 	return func(server *Server) {
 		server.weight = weight
+	}
+}
+
+func ServerWithGroup(group string) ServerOption {
+	return func(server *Server) {
+		server.group = group
 	}
 }
 

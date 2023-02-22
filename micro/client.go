@@ -7,6 +7,8 @@ import (
 
 	"github.com/jackycsl/geektime-go-practical/micro/registry"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/balancer"
+	"google.golang.org/grpc/balancer/base"
 )
 
 type ClientOption func(c *Client)
@@ -15,6 +17,7 @@ type Client struct {
 	insecure bool
 	r        registry.Registry
 	timeout  time.Duration
+	balancer balancer.Builder
 }
 
 func NewClient(opts ...ClientOption) (*Client, error) {
@@ -35,6 +38,14 @@ func ClientWithRegistry(r registry.Registry, timeout time.Duration) ClientOption
 	return func(c *Client) {
 		c.r = r
 		c.timeout = timeout
+	}
+}
+
+func ClientWithPickerBuilder(name string, b base.PickerBuilder) ClientOption {
+	return func(c *Client) {
+		builder := base.NewBalancerBuilder(name, b, base.Config{HealthCheck: true})
+		balancer.Register(builder)
+		c.balancer = builder
 	}
 }
 
