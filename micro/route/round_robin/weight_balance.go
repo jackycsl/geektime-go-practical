@@ -4,24 +4,25 @@ import (
 	"math"
 	"sync"
 
+	"github.com/jackycsl/geektime-go-practical/micro/route"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/balancer/base"
+	"google.golang.org/grpc/resolver"
 )
 
 type WeightBalancer struct {
 	connections []*weightConn
-	// mutex       sync.Mutex
+	filter      route.Filter
 }
 
 func (w *WeightBalancer) Pick(info balancer.PickInfo) (balancer.PickResult, error) {
-	if len(w.connections) == 0 {
-		return balancer.PickResult{}, balancer.ErrNoSubConnAvailable
-	}
 	var totalWeight uint32
 	var res *weightConn
-	// w.mutex.Lock()
-	// defer w.mutex.Unlock()
+
 	for _, c := range w.connections {
+		if w.filter != nil && !w.filter(info, c.addr) {
+			continue
+		}
 		c.mutex.Lock()
 		totalWeight = totalWeight + c.efficientWeight
 		c.currentWeight = c.currentWeight + c.efficientWeight
@@ -31,6 +32,9 @@ func (w *WeightBalancer) Pick(info balancer.PickInfo) (balancer.PickResult, erro
 		c.mutex.Unlock()
 	}
 
+	if res == nil {
+		return balancer.PickResult{}, balancer.ErrNoSubConnAvailable
+	}
 	res.mutex.Lock()
 	res.currentWeight = res.currentWeight - totalWeight
 	res.mutex.Unlock()
@@ -51,56 +55,30 @@ func (w *WeightBalancer) Pick(info balancer.PickInfo) (balancer.PickResult, erro
 				res.efficientWeight++
 			}
 			res.mutex.Unlock()
-			// for {
-			// 	weight := atomic.LoadUint32(&res.efficientWeight)
-			// 	if info.Err != nil && weight == 0 {
-			// 		return
-			// 	}
-			// 	if info.Err == nil && weight == math.MaxUint32 {
-			// 		return
-			// 	}
-			// 	newWeight := weight
-			// 	if info.Err != nil {
-			// 		newWeight--
-			// 	} else {
-			// 		newWeight++
-			// 	}
-			// 	if atomic.CompareAndSwapUint32(&(res.efficientWeight), weight, newWeight) {
-			// 		return
-			// 	}
-			// }
 		},
 	}, nil
 }
 
-//func (b *Balancer) done(res *weightConn) func(info balancer.DoneInfo) {
-//
-//}
-
-type WeightBalancerBuilder struct{}
+type WeightBalancerBuilder struct {
+	Filter route.Filter
+}
 
 func (w *WeightBalancerBuilder) Build(info base.PickerBuildInfo) balancer.Picker {
 	cs := make([]*weightConn, 0, len(info.ReadySCs))
 	for sub, subInfo := range info.ReadySCs {
-		// weightStr := subInfo.Address.Attributes.Value("weight").(string)
 		weight := subInfo.Address.Attributes.Value("weight").(uint32)
-		// if !ok || weightStr == "" {
-		// 	panic()
-		// }
-		// weight, err := strconv.ParseUint(weightStr, 10, 64)
-		// if err != nil {
-		// 	panic(err)
-		// }
 
 		cs = append(cs, &weightConn{
 			c:               sub,
 			weight:          uint32(weight),
 			currentWeight:   uint32(weight),
 			efficientWeight: uint32(weight),
+			addr:            subInfo.Address,
 		})
 	}
 	return &WeightBalancer{
 		connections: cs,
+		filter:      w.Filter,
 	}
 }
 
@@ -110,4 +88,5 @@ type weightConn struct {
 	weight          uint32
 	currentWeight   uint32
 	efficientWeight uint32
+	addr            resolver.Address
 }
